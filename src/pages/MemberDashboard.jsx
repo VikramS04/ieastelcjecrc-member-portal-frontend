@@ -41,6 +41,7 @@ import {
 } from 'chart.js';
 import { Line, Bar } from 'react-chartjs-2';
 import logo from '../assets/Iaeste Logo Standard 2.png';
+import { apiFetch, clearAuthSession, getAuthToken } from '../utils/api';
 
 // Register ChartJS
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, ArcElement);
@@ -53,23 +54,61 @@ const OFFERS = [
     { id: 4, country: 'Sweden', flag: '🇸🇪', company: 'Spotify', position: 'Data Science Intern', duration: '6 Months', stipend: 'SEK 25,000/mo', field: 'Data Science', deadline: '2026-04-10', urgent: false },
 ];
 
-const NOTIFICATIONS = [
-    { id: 1, title: 'New Offer Released - Germany', time: '2 hours ago', type: 'offer' },
-    { id: 2, title: 'Nomination Packet Deadline', time: '3 days left', type: 'alert' },
-    { id: 3, title: 'Document verification approved', time: '1 day ago', type: 'success' },
-];
-
 export default function MemberDashboard() {
     const [activeTab, setActiveTab] = useState('dashboard');
     const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 768);
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
     const [selectedOffer, setSelectedOffer] = useState(null);
+    const [currentUser, setCurrentUser] = useState(null);
+    const [currentMember, setCurrentMember] = useState(null); // membership application/profile
+    const [offers, setOffers] = useState(OFFERS);
+    const [applications, setApplications] = useState([]);
+    const [savedOfferIds, setSavedOfferIds] = useState([]);
+    const [notifications, setNotifications] = useState([]);
 
     const navigate = useNavigate();
 
     // SEO & Responsive Init
     useEffect(() => {
         document.title = "Member Dashboard | IAESTE LC JECRC";
+        const token = getAuthToken();
+        if (!token) {
+            navigate('/login');
+            return;
+        }
+
+        const load = async () => {
+            try {
+                const me = await apiFetch('/api/me');
+                setCurrentUser(me.user);
+                setCurrentMember(me.membership);
+
+                if (me?.user?.registrationNumber) {
+                    const metaKey = `iaesteMemberMeta_${me.user.registrationNumber}`;
+                    try {
+                        const storedMeta = JSON.parse(localStorage.getItem(metaKey) || '{}');
+                        setSavedOfferIds(storedMeta.savedOfferIds || []);
+                    } catch (e) {
+                        console.error('Failed to load saved offers meta', e);
+                    }
+                }
+
+                const offersRes = await apiFetch('/api/offers', { auth: false });
+                setOffers(offersRes.offers || []);
+
+                const appsRes = await apiFetch('/api/my/applications');
+                setApplications(appsRes.applications || []);
+
+                const notifRes = await apiFetch('/api/me/notifications');
+                setNotifications(notifRes.notifications || []);
+            } catch (error) {
+                console.error('Failed to load member dashboard', error);
+                clearAuthSession();
+                navigate('/login');
+            }
+        };
+
+        load();
 
         const handleResize = () => {
             const mobile = window.innerWidth < 768;
@@ -83,9 +122,53 @@ export default function MemberDashboard() {
 
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
-    }, []);
+    }, [navigate]);
+
+    const persistSavedOffers = (nextSavedOfferIds) => {
+        setSavedOfferIds(nextSavedOfferIds);
+        if (!currentUser?.registrationNumber) return;
+        const metaKey = `iaesteMemberMeta_${currentUser.registrationNumber}`;
+        try {
+            localStorage.setItem(metaKey, JSON.stringify({ savedOfferIds: nextSavedOfferIds }));
+        } catch (e) {
+            console.error('Failed to save member meta', e);
+        }
+    };
+
+    const toggleSaveOffer = (offerId) => {
+        if (!currentUser) {
+            alert('Please complete membership registration first.');
+            return;
+        }
+        const isSaved = savedOfferIds.includes(offerId);
+        const nextSaved = isSaved ? savedOfferIds.filter(id => id !== offerId) : [...savedOfferIds, offerId];
+        persistSavedOffers(nextSaved);
+    };
+
+    const applyToOffer = async (offerId) => {
+        if (!currentUser) {
+            alert('Please complete membership registration first.');
+            return;
+        }
+
+        const alreadyApplied = applications.some(app => app.offerId?.toString?.() === offerId || app.offer?._id === offerId);
+        if (alreadyApplied) {
+            alert('You have already applied for this offer.');
+            return;
+        }
+        try {
+            await apiFetch(`/api/offers/${offerId}/apply`, { method: 'POST' });
+            const appsRes = await apiFetch('/api/my/applications');
+            setApplications(appsRes.applications || []);
+            if (!savedOfferIds.includes(offerId)) persistSavedOffers([...savedOfferIds, offerId]);
+            alert('Application submitted for this offer!');
+        } catch (error) {
+            alert(error?.message || 'Failed to apply');
+        }
+    };
 
     const handleLogout = () => {
+        clearAuthSession();
         navigate('/');
     };
 
@@ -124,6 +207,7 @@ export default function MemberDashboard() {
 
                     <div className={`my-4 border-t border-gray-100 mx-2 transition-opacity duration-200 ${!isMobile && !sidebarOpen ? 'opacity-0' : 'opacity-100'}`}></div>
 
+                    <NavButton id="notifications" icon={<NotificationsIcon />} label="Notifications" />
                     <p className={`px-4 text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 transition-opacity duration-200 ${!isMobile && !sidebarOpen ? 'opacity-0 hidden' : 'opacity-100 delay-100'}`}>Records</p>
                     <NavButton id="documents" icon={<DocumentsIcon />} label="Documents" />
                     <NavButton id="analytics" icon={<AnalyticsIcon />} label="Analytics" />
@@ -236,8 +320,12 @@ export default function MemberDashboard() {
                 </div>
                 <div className="flex items-center space-x-3 pl-4 border-l border-gray-200">
                     <div className="text-right hidden md:block">
-                        <p className="text-sm font-semibold text-gray-800">Member Name</p>
-                        <p className="text-xs text-[#003366]">LCJ-2026-045</p>
+                        <p className="text-sm font-semibold text-gray-800">
+                            {currentUser?.fullName || 'Member'}
+                        </p>
+                        <p className="text-xs text-[#003366]">
+                            {currentUser?.registrationNumber || '—'}
+                        </p>
                     </div>
                     <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-gradient-to-r from-[#003366] to-[#005a8f] flex items-center justify-center text-white font-bold text-sm md:text-base">
                         MN
@@ -252,10 +340,10 @@ export default function MemberDashboard() {
     const DashboardView = () => (
         <div className="space-y-8 animate-fade-in-up">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-                <StatCard title="Total Offers" value="1,248" icon={<OffersIcon />} color="#003366" />
-                <StatCard title="Applied" value="12" icon={<ApplicationsIcon />} color="#D62828" />
+                <StatCard title="Total Offers" value={offers.length} icon={<OffersIcon />} color="#003366" />
+                <StatCard title="Applied" value={applications.length} icon={<ApplicationsIcon />} color="#D62828" />
                 <StatCard title="Shortlisted" value="3" icon={<CheckCircleIcon />} color="#10B981" />
-                <StatCard title="Profile Status" value="85%" icon={<ProfileIcon />} color="#F59E0B" />
+                <StatCard title="Profile Status" value={currentMember ? 'Complete' : 'Pending'} icon={<ProfileIcon />} color="#F59E0B" />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -280,17 +368,28 @@ export default function MemberDashboard() {
                 <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100">
                     <h3 className="text-lg font-bold text-gray-800 mb-4">Notifications</h3>
                     <div className="space-y-4">
-                        {NOTIFICATIONS.map(note => (
-                            <div key={note.id} className="flex items-start p-3 hover:bg-gray-50 rounded-lg transition-colors cursor-pointer border-b border-gray-50 last:border-0">
-                                <div className={`w-2 h-2 mt-2 rounded-full mr-3 ${note.type === 'offer' ? 'bg-[#003366]' : note.type === 'alert' ? 'bg-[#D62828]' : 'bg-green-500'}`}></div>
-                                <div>
-                                    <p className="text-sm font-semibold text-gray-800">{note.title}</p>
-                                    <p className="text-xs text-gray-500 mt-1">{note.time}</p>
-                                </div>
-                            </div>
-                        ))}
+                        {notifications.length === 0 ? (
+                            <p className="text-sm text-gray-500">No notifications yet</p>
+                        ) : (
+                            notifications.slice(0, 5).map((note) => {
+                                const d = note.createdAt ? new Date(note.createdAt) : null;
+                                const timeStr = d ? (d.toLocaleDateString() + ' ' + d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })) : '';
+                                return (
+                                    <div key={note._id} className="flex items-start p-3 hover:bg-gray-50 rounded-lg transition-colors border-b border-gray-50 last:border-0">
+                                        <div className="w-2 h-2 mt-2 rounded-full mr-3 bg-[#003366] flex-shrink-0"></div>
+                                        <div>
+                                            <p className="text-sm font-semibold text-gray-800">{note.title}</p>
+                                            {note.body && <p className="text-xs text-gray-600 mt-0.5">{note.body}</p>}
+                                            <p className="text-xs text-gray-500 mt-1">{timeStr}</p>
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        )}
                     </div>
-                    <button className="w-full mt-4 text-sm text-[#003366] font-semibold hover:underline">View All</button>
+                    {notifications.length > 5 && (
+                        <button onClick={() => setActiveTab('notifications')} className="w-full mt-4 text-sm text-[#003366] font-semibold hover:underline">View All</button>
+                    )}
                 </div>
             </div>
 
@@ -337,48 +436,371 @@ export default function MemberDashboard() {
         </motion.div>
     );
 
-    const OffersView = () => (
-        <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {OFFERS.map(offer => (
-                    <motion.div
-                        key={offer.id}
-                        whileHover={{ y: -5, boxShadow: '0 10px 30px -10px rgba(0,0,0,0.1)' }}
-                        className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm relative group cursor-pointer"
-                        onClick={() => setSelectedOffer(offer)}
-                    >
-                        {offer.urgent && (
-                            <span className="absolute top-4 right-4 bg-[#D62828]/10 text-[#D62828] text-xs font-bold px-3 py-1 rounded-full">
-                                URGENT
-                            </span>
-                        )}
-                        <div className="flex items-center mb-4">
-                            <span className="text-4xl mr-4">{offer.flag}</span>
-                            <div>
-                                <h3 className="font-bold text-lg text-gray-800 group-hover:text-[#003366] transition-colors">{offer.company}</h3>
-                                <p className="text-sm text-gray-500">{offer.country}</p>
-                            </div>
-                        </div>
-                        <div className="space-y-3 mb-6">
-                            <h4 className="font-semibold text-gray-700 min-h-[48px]">{offer.position}</h4>
-                            <div className="flex items-center text-sm text-gray-600">
-                                <TimeIcon className="w-4 h-4 mr-2 text-gray-400" /> {offer.duration}
-                            </div>
-                            <div className="flex items-center text-sm text-gray-600">
-                                <StipendIcon className="w-4 h-4 mr-2 text-gray-400" /> {offer.stipend}
-                            </div>
-                            <div className="flex items-center text-sm text-gray-600">
-                                <FieldIcon className="w-4 h-4 mr-2 text-gray-400" /> {offer.field}
-                            </div>
-                        </div>
-                        <button className="w-full py-2 rounded-lg bg-[#F4F6F8] text-[#003366] font-semibold hover:bg-[#003366] hover:text-white transition-all">
-                            View Details
-                        </button>
-                    </motion.div>
-                ))}
+    const ProfileField = ({ label, value }) => (
+        <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">{label}</p>
+            <p className="text-sm font-medium text-gray-800 break-words">{value || '-'}</p>
+        </div>
+    );
+
+    const NotificationsListView = () => (
+        <div className="space-y-6 animate-fade-in-up">
+            <h3 className="text-xl font-bold text-gray-800">All Notifications</h3>
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                {notifications.length === 0 ? (
+                    <div className="p-12 text-center text-gray-500">
+                        <NotificationsIcon style={{ fontSize: 48, opacity: 0.5 }} className="mb-4" />
+                        <p>No notifications yet</p>
+                    </div>
+                ) : (
+                    <div className="divide-y divide-gray-100">
+                        {notifications.map((note) => {
+                            const d = note.createdAt ? new Date(note.createdAt) : null;
+                            const dateStr = d ? d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+                            const timeStr = d ? d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '';
+                            return (
+                                <div key={note._id} className="p-4 md:p-6 hover:bg-gray-50/50 transition-colors">
+                                    <div className="flex gap-3">
+                                        <div className="w-3 h-3 rounded-full bg-[#003366] mt-1.5 flex-shrink-0"></div>
+                                        <div>
+                                            <p className="font-semibold text-gray-800">{note.title}</p>
+                                            {note.body && <p className="text-sm text-gray-600 mt-1">{note.body}</p>}
+                                            <p className="text-xs text-gray-500 mt-2">{dateStr} • {timeStr}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
             </div>
         </div>
     );
+
+    const ProfileView = () => {
+        if (!currentMember) {
+            return (
+                <div className="flex items-center justify-center h-96 text-gray-400">
+                    <div className="text-center">
+                        <ProfileIcon style={{ fontSize: 64, opacity: 0.5 }} />
+                        <p className="mt-4 text-lg">No membership details found.</p>
+                        <p className="text-sm">Please complete the registration form to see your profile here.</p>
+                    </div>
+                </div>
+            );
+        }
+
+        const [currentPassword, setCurrentPassword] = useState('');
+        const [newPassword, setNewPassword] = useState('');
+        const [confirmPassword, setConfirmPassword] = useState('');
+        const [pwMessage, setPwMessage] = useState('');
+        const [pwError, setPwError] = useState('');
+        const [pwLoading, setPwLoading] = useState(false);
+
+        return (
+            <div className="space-y-6 animate-fade-in-up">
+                <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100">
+                    <h3 className="text-xl font-bold text-gray-800 mb-4">Member Profile</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                        <ProfileField label="Full Name" value={currentMember.fullName} />
+                        <ProfileField label="Registration/Roll No." value={currentMember.registrationNumber} />
+                        <ProfileField label="Email Address" value={currentMember.email} />
+                        <ProfileField label="WhatsApp No." value={currentMember.whatsappNumber} />
+                        <ProfileField label="Course" value={currentMember.course} />
+                        <ProfileField label="Branch & Section" value={currentMember.branchSection} />
+                        <ProfileField label="Current Semester" value={currentMember.semester} />
+                        <ProfileField
+                            label="Type of Membership"
+                            value={currentMember.memberType ? currentMember.memberType.replace('-', ' ') : ''}
+                        />
+                        <ProfileField
+                            label="Do you have a passport?"
+                            value={
+                                currentMember.hasPassport
+                                    ? currentMember.hasPassport === 'yes'
+                                        ? 'Yes'
+                                        : 'No'
+                                    : 'Not specified'
+                            }
+                        />
+                    </div>
+                </div>
+
+                {currentMember.memberType === 'out-station' && (
+                    <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100">
+                        <h3 className="text-lg font-bold text-gray-800 mb-4">University Details</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                            <ProfileField label="University Name" value={currentMember.universityName} />
+                            <ProfileField label="State" value={currentMember.universityState} />
+                            <ProfileField label="City" value={currentMember.universityCity} />
+                            <ProfileField label="Pincode" value={currentMember.universityPincode} />
+                            <ProfileField label="Address" value={currentMember.universityAddress} />
+                        </div>
+                    </div>
+                )}
+
+                <div className="bg-yellow-50 border border-yellow-100 rounded-2xl p-4 text-xs text-gray-700">
+                    <p className="font-semibold text-yellow-800">Note</p>
+                    <p className="mt-1">
+                        Fees once paid is not refundable under any circumstances.
+                    </p>
+                </div>
+
+                <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100">
+                    <h3 className="text-lg font-bold text-gray-800 mb-4">Change Password</h3>
+                    <p className="text-sm text-gray-500 mb-4">Enter your current password to set a new one.</p>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Current Password</label>
+                            <input
+                                type="password"
+                                value={currentPassword}
+                                onChange={(e) => setCurrentPassword(e.target.value)}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B3D59]/20 focus:border-[#0B3D59]"
+                                placeholder="••••••••"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">New Password</label>
+                            <input
+                                type="password"
+                                value={newPassword}
+                                onChange={(e) => setNewPassword(e.target.value)}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B3D59]/20 focus:border-[#0B3D59]"
+                                placeholder="At least 6 characters"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Confirm New Password</label>
+                            <input
+                                type="password"
+                                value={confirmPassword}
+                                onChange={(e) => setConfirmPassword(e.target.value)}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B3D59]/20 focus:border-[#0B3D59]"
+                                placeholder="Repeat new password"
+                            />
+                        </div>
+                    </div>
+                    <div className="mt-4 flex items-center justify-between">
+                        <p className="text-[11px] text-gray-500">
+                            You must enter your current password to change it.
+                        </p>
+                        <button
+                            type="button"
+                            disabled={pwLoading}
+                            onClick={async () => {
+                                setPwError('');
+                                setPwMessage('');
+                                if (!currentPassword) {
+                                    setPwError('Please enter your current password.');
+                                    return;
+                                }
+                                if (!newPassword || newPassword.length < 6) {
+                                    setPwError('New password must be at least 6 characters.');
+                                    return;
+                                }
+                                if (newPassword !== confirmPassword) {
+                                    setPwError('New password and confirmation do not match.');
+                                    return;
+                                }
+                                try {
+                                    setPwLoading(true);
+                                    await apiFetch('/api/me/password', {
+                                        method: 'PATCH',
+                                        body: {
+                                            currentPassword,
+                                            newPassword
+                                        }
+                                    });
+                                    setPwMessage('Password updated successfully.');
+                                    setCurrentPassword('');
+                                    setNewPassword('');
+                                    setConfirmPassword('');
+                                } catch (error) {
+                                    setPwError(error?.message || 'Failed to update password');
+                                } finally {
+                                    setPwLoading(false);
+                                }
+                            }}
+                            className="px-5 py-2 rounded-lg bg-[#0B3D59] text-white text-xs font-semibold hover:bg-[#09314a] disabled:opacity-60"
+                        >
+                            {pwLoading ? 'Updating...' : 'Update Password'}
+                        </button>
+                    </div>
+                    {pwError && <p className="mt-2 text-xs text-red-600">{pwError}</p>}
+                    {pwMessage && <p className="mt-2 text-xs text-green-600">{pwMessage}</p>}
+                </div>
+            </div>
+        );
+    };
+
+    const OffersView = () => (
+        <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {offers.map(offer => {
+                    const offerId = offer._id || offer.id;
+                    const isSaved = savedOfferIds.includes(offerId);
+                    const isApplied = applications.some(app => (app.offerId?.toString?.() || app.offerId) === offerId || app.offer?._id === offerId);
+                    return (
+                        <motion.div
+                            key={offerId}
+                            whileHover={{ y: -5, boxShadow: '0 10px 30px -10px rgba(0,0,0,0.1)' }}
+                            className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm relative group cursor-pointer"
+                            onClick={() => setSelectedOffer(offer)}
+                        >
+                            {offer.urgent && (
+                                <span className="absolute top-4 right-4 bg-[#D62828]/10 text-[#D62828] text-xs font-bold px-3 py-1 rounded-full">
+                                    URGENT
+                                </span>
+                            )}
+                            {isApplied && (
+                                <span className="absolute top-4 left-4 bg-green-100 text-green-700 text-[10px] font-bold px-2 py-1 rounded-full">
+                                    APPLIED
+                                </span>
+                            )}
+                            <div className="flex items-center mb-4">
+                                <span className="text-4xl mr-4">{offer.flag}</span>
+                                <div>
+                                    <h3 className="font-bold text-lg text-gray-800 group-hover:text-[#003366] transition-colors">{offer.company}</h3>
+                                    <p className="text-sm text-gray-500">{offer.country}</p>
+                                </div>
+                            </div>
+                            <div className="space-y-3 mb-6">
+                                <h4 className="font-semibold text-gray-700 min-h-[48px]">{offer.position}</h4>
+                                <div className="flex items-center text-sm text-gray-600">
+                                    <TimeIcon className="w-4 h-4 mr-2 text-gray-400" /> {offer.duration}
+                                </div>
+                                <div className="flex items-center text-sm text-gray-600">
+                                    <StipendIcon className="w-4 h-4 mr-2 text-gray-400" /> {offer.stipend}
+                                </div>
+                                <div className="flex items-center text-sm text-gray-600">
+                                    <FieldIcon className="w-4 h-4 mr-2 text-gray-400" /> {offer.field}
+                                </div>
+                            </div>
+                            <div className="flex gap-2">
+                                <button
+                                    type="button"
+                                    className={`flex-1 py-2 rounded-lg border text-xs font-semibold transition-all ${isSaved
+                                        ? 'bg-[#003366] text-white border-[#003366]'
+                                        : 'bg-[#F4F6F8] text-[#003366] border-gray-200 hover:bg-[#003366] hover:text-white'
+                                        }`}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleSaveOffer(offerId);
+                                    }}
+                                >
+                                    {isSaved ? 'Saved' : 'Save'}
+                                </button>
+                                <button
+                                    type="button"
+                                    className="flex-1 py-2 rounded-lg bg-[#F4F6F8] text-[#003366] font-semibold hover:bg-[#003366] hover:text-white transition-all text-xs"
+                                    onClick={() => setSelectedOffer(offer)}
+                                >
+                                    View Details
+                                </button>
+                            </div>
+                        </motion.div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+
+    const SettingsView = () => {
+        const [currentPassword, setCurrentPassword] = useState('');
+        const [newPassword, setNewPassword] = useState('');
+        const [confirmPassword, setConfirmPassword] = useState('');
+        const [pwMessage, setPwMessage] = useState('');
+        const [pwError, setPwError] = useState('');
+        const [pwLoading, setPwLoading] = useState(false);
+
+        return (
+            <div className="space-y-6 animate-fade-in-up">
+                <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100">
+                    <h3 className="text-xl font-bold text-gray-800 mb-4">Settings</h3>
+                    <div className="border-t border-gray-100 pt-6 mt-6">
+                        <h4 className="text-lg font-bold text-gray-800 mb-4">Change Password</h4>
+                        <p className="text-sm text-gray-500 mb-4">Enter your current password to set a new one.</p>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Current Password</label>
+                                <input
+                                    type="password"
+                                    value={currentPassword}
+                                    onChange={(e) => setCurrentPassword(e.target.value)}
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B3D59]/20 focus:border-[#0B3D59]"
+                                    placeholder="Enter your current password"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">New Password</label>
+                                <input
+                                    type="password"
+                                    value={newPassword}
+                                    onChange={(e) => setNewPassword(e.target.value)}
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B3D59]/20 focus:border-[#0B3D59]"
+                                    placeholder="At least 6 characters"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Confirm New Password</label>
+                                <input
+                                    type="password"
+                                    value={confirmPassword}
+                                    onChange={(e) => setConfirmPassword(e.target.value)}
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B3D59]/20 focus:border-[#0B3D59]"
+                                    placeholder="Repeat new password"
+                                />
+                            </div>
+                        </div>
+                        <div className="mt-4 flex items-center justify-between flex-wrap gap-4">
+                            <p className="text-[11px] text-gray-500">You must enter your current password to change it.</p>
+                            <button
+                                type="button"
+                                disabled={pwLoading}
+                                onClick={async () => {
+                                    setPwError('');
+                                    setPwMessage('');
+                                    if (!currentPassword) {
+                                        setPwError('Please enter your current password.');
+                                        return;
+                                    }
+                                    if (!newPassword || newPassword.length < 6) {
+                                        setPwError('New password must be at least 6 characters.');
+                                        return;
+                                    }
+                                    if (newPassword !== confirmPassword) {
+                                        setPwError('New password and confirmation do not match.');
+                                        return;
+                                    }
+                                    try {
+                                        setPwLoading(true);
+                                        await apiFetch('/api/me/password', {
+                                            method: 'PATCH',
+                                            body: { currentPassword, newPassword }
+                                        });
+                                        setPwMessage('Password updated successfully.');
+                                        setCurrentPassword('');
+                                        setNewPassword('');
+                                        setConfirmPassword('');
+                                    } catch (error) {
+                                        setPwError(error?.message || 'Failed to update password');
+                                    } finally {
+                                        setPwLoading(false);
+                                    }
+                                }}
+                                className="px-5 py-2 rounded-lg bg-[#0B3D59] text-white text-xs font-semibold hover:bg-[#09314a] disabled:opacity-60"
+                            >
+                                {pwLoading ? 'Updating...' : 'Update Password'}
+                            </button>
+                        </div>
+                        {pwError && <p className="mt-2 text-xs text-red-600">{pwError}</p>}
+                        {pwMessage && <p className="mt-2 text-xs text-green-600">{pwMessage}</p>}
+                    </div>
+                </div>
+            </div>
+        );
+    };
 
     const OfferDetailModal = ({ offer, onClose }) => {
         const [detailTab, setDetailTab] = useState('Overview');
@@ -556,18 +978,90 @@ export default function MemberDashboard() {
                             <button className="flex-1 md:flex-none flex items-center justify-center px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors">
                                 <DownloadIcon className="w-4 h-4 mr-2" /> PDF
                             </button>
-                            <button className="flex-1 md:flex-none flex items-center justify-center px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors">
+                            <button
+                                type="button"
+                                onClick={() => toggleSaveOffer(offer._id || offer.id)}
+                                className="flex-1 md:flex-none flex items-center justify-center px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
+                            >
                                 <BookmarkIcon className="w-4 h-4 mr-2" /> Save
                             </button>
                         </div>
                         <button
-                            onClick={() => { onClose(); alert("Application Started!"); }}
+                            type="button"
+                            onClick={() => {
+                                applyToOffer(offer._id || offer.id);
+                                onClose();
+                            }}
                             className="w-full md:w-auto flex items-center justify-center px-8 py-3 bg-[#D62828] text-white font-bold rounded-lg hover:bg-red-700 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-1"
                         >
                             Apply Now <SendIcon className="w-4 h-4 ml-2" />
                         </button>
                     </div>
                 </motion.div>
+            </div>
+        );
+    };
+
+    const MyApplicationsView = () => {
+        if (!applications.length) {
+            return (
+                <div className="flex items-center justify-center h-96 text-gray-400">
+                    <div className="text-center">
+                        <ApplicationsIcon style={{ fontSize: 64, opacity: 0.5 }} />
+                        <p className="mt-4 text-lg">You have not applied to any offers yet.</p>
+                        <p className="text-sm">Browse offers and click Apply to start.</p>
+                    </div>
+                </div>
+            );
+        }
+
+        const rows = applications.map(app => ({
+            app,
+            offer: app.offer || null
+        }));
+
+        return (
+            <div className="space-y-6 animate-fade-in-up">
+                <h3 className="text-xl font-bold text-gray-800">My Applications</h3>
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left min-w-[700px]">
+                            <thead className="bg-gray-50 border-b border-gray-200">
+                                <tr>
+                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Offer</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Country</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Applied On</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {rows.map(({ offer, app }) => {
+                                    const date = app.createdAt ? app.createdAt.slice(0, 10) : '-';
+                                    return (
+                                        <tr key={`${app._id || app.offerId}-${date}`} className="hover:bg-gray-50 transition-colors">
+                                            <td className="px-6 py-4">
+                                                <p className="font-bold text-gray-800 text-sm">{offer?.position || '-'}</p>
+                                                <p className="text-xs text-gray-500">{offer?.company || ''}</p>
+                                            </td>
+                                            <td className="px-6 py-4 text-sm text-gray-700">{offer?.country || '-'}</td>
+                                            <td className="px-6 py-4 text-sm text-gray-500">{date}</td>
+                                            <td className="px-6 py-4">
+                                                <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                                                    app.status === 'Selected' ? 'bg-green-100 text-green-700' :
+                                                    app.status === 'Rejected' ? 'bg-red-100 text-red-700' :
+                                                    app.status === 'Shortlisted' ? 'bg-yellow-100 text-yellow-700' :
+                                                    'bg-blue-50 text-blue-700'
+                                                }`}>
+                                                    {app.status || 'Submitted'}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         );
     };
@@ -600,7 +1094,11 @@ export default function MemberDashboard() {
                         >
                             {activeTab === 'dashboard' && <DashboardView />}
                             {activeTab === 'offers' && <OffersView />}
-                            {activeTab !== 'dashboard' && activeTab !== 'offers' && (
+                            {activeTab === 'applications' && <MyApplicationsView />}
+                            {activeTab === 'profile' && <ProfileView />}
+                            {activeTab === 'settings' && <SettingsView />}
+                            {activeTab === 'notifications' && <NotificationsListView />}
+                            {activeTab !== 'dashboard' && activeTab !== 'offers' && activeTab !== 'applications' && activeTab !== 'profile' && activeTab !== 'settings' && activeTab !== 'notifications' && (
                                 <div className="flex items-center justify-center h-96 text-gray-400">
                                     <div className="text-center">
                                         <NominationIcon style={{ fontSize: 64, opacity: 0.5 }} />

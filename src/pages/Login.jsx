@@ -3,27 +3,36 @@ import { Link, useNavigate } from 'react-router-dom';
 import Footer from '../components/Footer';
 import logo from '../assets/Iaeste Logo Standard 2.png';
 import verticalLogo from '../assets/logo-removebg-preview 1.png';
+import { apiFetch, setAuthSession } from '../utils/api';
 
 const Login = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
 
     useEffect(() => {
         document.title = "Login | IAESTE LC JECRC";
     }, []);
 
-    const handleLogin = (e) => {
+    const handleLogin = async (e) => {
         e.preventDefault();
-
-        // Simple demo authentication logic
-        if (email.toLowerCase() === 'admin@iaeste.in' && password === 'admin123') {
-            navigate('/admin-dashboard');
-        } else if (email.toLowerCase() === 'member@iaeste.in' && password === 'member123') {
-            navigate('/dashboard');
-        } else {
-            // Default fallback for demo purposes
-            navigate('/dashboard');
+        setError('');
+        setLoading(true);
+        try {
+            const data = await apiFetch('/api/auth/login', {
+                method: 'POST',
+                auth: false,
+                body: { email, password }
+            });
+            setAuthSession({ token: data.token, user: data.user });
+            if (data?.user?.role === 'admin') navigate('/admin-dashboard');
+            else navigate('/dashboard');
+        } catch (err) {
+            setError(err?.message || 'Login failed');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -124,10 +133,17 @@ const Login = () => {
 
                                 <button
                                     type="submit"
+                                    disabled={loading}
                                     className="w-full bg-[#0B3D59] hover:bg-[#072a3f] text-white font-semibold py-3.5 rounded-lg shadow-lg shadow-[#0B3D59]/20 hover:shadow-[#0B3D59]/40 transform transition-all duration-300 hover:-translate-y-1 active:translate-y-0 text-sm tracking-wide"
                                 >
-                                    LOGIN ACCOUNT
+                                    {loading ? 'LOGGING IN...' : 'LOGIN ACCOUNT'}
                                 </button>
+
+                                {error && (
+                                    <div className="p-3 bg-red-50 rounded-lg border border-red-100 text-xs text-red-700">
+                                        {error}
+                                    </div>
+                                )}
 
                                 {/* Demo Credentials Helper (Temporary) */}
                                 <div className="p-3 bg-blue-50/50 rounded-lg border border-blue-100 text-xs text-gray-600">

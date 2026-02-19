@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import Footer from '../components/Footer';
 import logo from '../assets/Iaeste Logo Standard 2.png';
 import verticalLogo from '../assets/logo-removebg-preview 1.png';
+import { apiFetch, setAuthSession } from '../utils/api';
 
 const Register = () => {
     const [formData, setFormData] = useState({
@@ -13,6 +14,7 @@ const Register = () => {
         course: '',
         branchSection: '',
         semester: '',
+        hasPassport: '',
         memberType: 'in-station', // default
         universityName: '',
         universityState: '',
@@ -27,6 +29,9 @@ const Register = () => {
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [showSuccessModal, setShowSuccessModal] = useState(false);
     const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+    const [apiError, setApiError] = useState('');
+    const [submitting, setSubmitting] = useState(false);
+    const navigate = useNavigate();
 
     useEffect(() => {
         document.title = "Register | IAESTE LC JECRC";
@@ -43,16 +48,48 @@ const Register = () => {
         }
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        setShowPaymentModal(true);
+        setApiError('');
+        // Directly register and redirect to login (payment popup disabled for now)
+        await handlePaymentSuccess();
     };
 
-    const handlePaymentSuccess = () => {
-        setShowPaymentModal(false);
-        setShowSuccessModal(true);
-        // Here you would typically send data to backend
-        console.log('Registration Data:', formData);
+    const handlePaymentSuccess = async () => {
+        setSubmitting(true);
+        setApiError('');
+        try {
+            const payload = {
+                fullName: formData.fullName,
+                registrationNumber: formData.registrationNumber,
+                email: formData.email,
+                whatsappNumber: formData.whatsappNumber,
+                course: formData.course,
+                branchSection: formData.branchSection,
+                semester: formData.semester,
+                hasPassport: formData.hasPassport,
+                memberType: formData.memberType,
+                universityName: formData.universityName,
+                universityState: formData.universityState,
+                universityCity: formData.universityCity,
+                universityPincode: formData.universityPincode,
+                universityAddress: formData.universityAddress
+            };
+
+            await apiFetch('/api/auth/register-member', {
+                method: 'POST',
+                auth: false,
+                body: payload
+            });
+
+            setShowPaymentModal(false);
+            // Payment gateway not integrated yet: after register, send user back to login
+            navigate('/login');
+        } catch (error) {
+            setApiError(error?.message || 'Registration failed');
+        } finally {
+            setSubmitting(false);
+        }
     };
 
     // --- Modals & Components ---
@@ -85,9 +122,10 @@ const Register = () => {
 
                 <button
                     onClick={handlePaymentSuccess}
+                    disabled={submitting}
                     className="w-full bg-[#0B3D59] hover:bg-[#072a3f] text-white font-bold py-3.5 rounded-xl shadow-lg shadow-[#0B3D59]/20 hover:shadow-[#0B3D59]/40 transform transition-all duration-300 hover:-translate-y-1 active:translate-y-0"
                 >
-                    Pay & Register
+                    {submitting ? 'Submitting...' : 'Pay & Register'}
                 </button>
                 <button
                     onClick={() => setShowPaymentModal(false)}
@@ -234,6 +272,10 @@ const Register = () => {
                                 </div>
                             </div>
 
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {/* Password will be provided by admin after approval */}
+                            </div>
+
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div className="group">
                                     <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5 group-focus-within:text-[#0B3D59] transition-colors">Course</label>
@@ -249,6 +291,37 @@ const Register = () => {
                                         <option value="">Select</option>
                                         {[1, 2, 3, 4, 5, 6, 7, 8].map(sem => <option key={sem} value={sem}>{sem}</option>)}
                                     </select>
+                                </div>
+                            </div>
+
+                            {/* Passport Question */}
+                            <div className="mt-2">
+                                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">
+                                    Do you have a passport?
+                                </label>
+                                <div className="flex gap-4">
+                                    <label className={`flex items-center px-3 py-2 rounded-lg border text-sm cursor-pointer transition-all ${formData.hasPassport === 'yes' ? 'bg-[#0B3D59] text-white border-[#0B3D59]' : 'bg-white text-gray-700 border-gray-200 hover:border-[#0B3D59]'}`}>
+                                        <input
+                                            type="radio"
+                                            name="hasPassport"
+                                            value="yes"
+                                            checked={formData.hasPassport === 'yes'}
+                                            onChange={handleInputChange}
+                                            className="hidden"
+                                        />
+                                        <span>Yes</span>
+                                    </label>
+                                    <label className={`flex items-center px-3 py-2 rounded-lg border text-sm cursor-pointer transition-all ${formData.hasPassport === 'no' ? 'bg-[#0B3D59] text-white border-[#0B3D59]' : 'bg-white text-gray-700 border-gray-200 hover:border-[#0B3D59]'}`}>
+                                        <input
+                                            type="radio"
+                                            name="hasPassport"
+                                            value="no"
+                                            checked={formData.hasPassport === 'no'}
+                                            onChange={handleInputChange}
+                                            className="hidden"
+                                        />
+                                        <span>No</span>
+                                    </label>
                                 </div>
                             </div>
 
@@ -337,43 +410,27 @@ const Register = () => {
                                         <input id="terms" name="termsAccepted" type="checkbox" checked={formData.termsAccepted} onChange={handleInputChange} className="w-4 h-4 rounded border-gray-300 text-[#0B3D59] focus:ring-[#0B3D59]" required />
                                     </div>
                                     <div className="ml-3 text-sm">
-                                        <label htmlFor="terms" className="font-medium text-gray-700">I agree to the <a href="#" className="text-[#0B3D59] hover:underline">Terms and Conditions</a></label>
+                                        <label htmlFor="terms" className="font-medium text-gray-700">
+                                            I agree to the <a href="#" className="text-[#0B3D59] hover:underline">Terms and Conditions</a>
+                                        </label>
+                                        <p className="mt-1 text-xs text-gray-500">
+                                            <span className="font-semibold">Note:</span> Fees once paid is not refundable under any circumstances.
+                                        </p>
                                     </div>
                                 </div>
 
-                                {/* Video Guidelines Section */}
-                                <div className="bg-gray-100 rounded-xl overflow-hidden shadow-inner border border-gray-200 group relative">
-                                    {!isVideoPlaying ? (
-                                        <div
-                                            className="w-full h-32 flex flex-col items-center justify-center bg-gray-200 cursor-pointer hover:bg-gray-300 transition-colors"
-                                            onClick={() => setIsVideoPlaying(true)}
-                                        >
-                                            <div className="w-12 h-12 bg-[#0B3D59] rounded-full flex items-center justify-center text-white mb-2 shadow-lg group-hover:scale-110 transition-transform">
-                                                <svg className="w-5 h-5 ml-1" fill="currentColor" viewBox="0 0 24 24">
-                                                    <path d="M8 5v14l11-7z" />
-                                                </svg>
-                                            </div>
-                                            <span className="text-sm font-semibold text-gray-600">Watch Guidelines Video</span>
-                                        </div>
-                                    ) : (
-                                        <div className="w-full h-48 bg-black flex items-center justify-center relative">
-                                            <p className="text-gray-400 text-sm">Video Player Placeholder</p>
-                                            <button
-                                                onClick={() => setIsVideoPlaying(false)}
-                                                className="absolute top-2 right-2 text-white bg-black/50 rounded-full p-1 hover:bg-black/80"
-                                            >
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                                                </svg>
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
+                                {/* Video Guidelines Section (disabled for now) */}
                             </div>
 
                             <button type="submit" className="w-full bg-[#0B3D59] hover:bg-[#072a3f] text-white font-bold py-3.5 rounded-lg shadow-lg shadow-[#0B3D59]/20 hover:shadow-[#0B3D59]/40 transform transition-all duration-300 hover:-translate-y-1 active:translate-y-0 tracking-wide uppercase text-sm">
                                 Submit Registration
                             </button>
+
+                            {apiError && (
+                                <div className="p-3 bg-red-50 rounded-lg border border-red-100 text-xs text-red-700">
+                                    {apiError}
+                                </div>
+                            )}
 
                             <div className="text-center text-sm text-gray-500">
                                 Already have an account? <Link to="/login" className="text-[#0B3D59] font-semibold hover:underline">Login here</Link>
