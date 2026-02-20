@@ -19,7 +19,9 @@ import {
     ChevronLeft as ChevronLeftIcon,
     ChevronRight as ChevronRightIcon,
     Menu as MenuIcon,
-    CloudUpload as UploadIcon
+    CloudUpload as UploadIcon,
+    LocationCity as CityIcon,
+    AccessTime as TimeIcon
 } from '@mui/icons-material';
 import {
     Chart as ChartJS,
@@ -40,9 +42,9 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarEleme
 
 // Mock Data
 const INITIAL_OFFERS = [
-    { id: 1, country: 'Germany', flag: '🇩🇪', company: 'BMW Group', position: 'Software Engineering Intern', duration: '6 Months', stipend: '€1200/mo', field: 'Computer Science', deadline: '2026-03-01', urgent: true, status: 'Active', applicants: 12 },
-    { id: 2, country: 'Switzerland', flag: '🇨🇭', company: 'CERN', position: 'Research Assistant', duration: '12 Months', stipend: 'CHF 3500/mo', field: 'Physics / IT', deadline: '2026-03-15', urgent: false, status: 'Active', applicants: 8 },
-    { id: 3, country: 'Japan', flag: '🇯🇵', company: 'Toyota', position: 'R&D Intern', duration: '3 Months', stipend: '¥150,000/mo', field: 'Mechanical Eng.', deadline: '2026-02-28', urgent: true, status: 'Closed', applicants: 24 },
+    { id: 1, country: 'Germany', city: 'Munich', flag: '🇩🇪', company: 'BMW Group', position: 'Software Engineering Intern', duration: '6 Months', stipend: '€1200/mo', field: 'Computer Science', deadline: '2026-03-01', urgent: true, status: 'Active', applicants: 12, offerType: 'Open' },
+    { id: 2, country: 'Switzerland', city: 'Geneva', flag: '🇨🇭', company: 'CERN', position: 'Research Assistant', duration: '12 Months', stipend: 'CHF 3500/mo', field: 'Physics / IT', deadline: '2026-03-15', urgent: false, status: 'Active', applicants: 8, offerType: 'FCFS' },
+    { id: 3, country: 'Japan', city: 'Tokyo', flag: '🇯🇵', company: 'Toyota', position: 'R&D Intern', duration: '3 Months', stipend: '¥150,000/mo', field: 'Mechanical Eng.', deadline: '2026-02-28', urgent: true, status: 'Closed', applicants: 24, offerType: 'Global' },
 ];
 
 const APPLICATIONS = [
@@ -51,19 +53,41 @@ const APPLICATIONS = [
     { id: 103, student: 'Rohan Gupta', offerId: 1, offerTitle: 'Software Engineering Intern (BMW)', status: 'Rejected', date: '2026-02-12' },
 ];
 
+const MEMBERS = [
+    { id: 201, name: 'Aarav Sharma', studentId: 'LCJ-2026-045', year: '3rd Year', department: 'Computer Science', status: 'Applied', appliedCount: 2 },
+    { id: 202, name: 'Priya Patel', studentId: 'LCJ-2026-048', year: '4th Year', department: 'IT', status: 'Placed', appliedCount: 5 },
+    { id: 203, name: 'Rohan Gupta', studentId: 'LCJ-2026-052', year: '3rd Year', department: 'Mechanical', status: 'Rejected', appliedCount: 1 },
+    { id: 204, name: 'Sneha Singh', studentId: 'LCJ-2026-060', year: '2nd Year', department: 'Electronics', status: 'Registered', appliedCount: 0 },
+    { id: 205, name: 'Vikram Malhotra', studentId: 'LCJ-2026-065', year: '4th Year', department: 'Civil', status: 'Registered', appliedCount: 0 },
+];
+
+const NOTIFICATIONS = [
+    { id: 1, title: 'New Offer: BMW Group', message: 'Applications are now open for BMW Software Engineering Intern.', type: 'Offer', date: '2026-02-18', recipient: 'All Members' },
+    { id: 2, title: 'System Maintenance', message: 'The portal will be down for maintenance on Sunday, 10 PM - 12 AM.', type: 'Alert', date: '2026-02-15', recipient: 'All Members' },
+    { id: 3, title: 'Interview Schedule Reminder', message: 'Please check your email for the interview schedule.', type: 'Info', date: '2026-02-10', recipient: '3rd Year' },
+];
+
 export default function AdminDashboard() {
     const [activeTab, setActiveTab] = useState('dashboard');
     const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 768);
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
     const [offers, setOffers] = useState(INITIAL_OFFERS);
+    const [members, setMembers] = useState(MEMBERS);
+    const [notifications, setNotifications] = useState(NOTIFICATIONS);
     const [showAddOfferModal, setShowAddOfferModal] = useState(false);
+    const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+    const [showNotificationModal, setShowNotificationModal] = useState(false);
+    const [deleteMemberStep, setDeleteMemberStep] = useState(0); // 0: None, 1: Confirm, 2: Final
+    const [memberToDelete, setMemberToDelete] = useState(null);
     const navigate = useNavigate();
 
     // New Offer Form State
     const [newOffer, setNewOffer] = useState({
         company: '',
         position: '',
+        type: 'Open',
         country: '',
+        city: '',
         flag: '',
         duration: '',
         stipend: '',
@@ -73,6 +97,12 @@ export default function AdminDashboard() {
         description: '',
         requirements: ''
     });
+
+    // New Member State
+    const [newMember, setNewMember] = useState({ name: '', studentId: '', year: '1st Year', department: '', email: '' });
+
+    // New Notification State
+    const [newNotification, setNewNotification] = useState({ title: '', message: '', type: 'Info', recipient: 'All Members' });
 
     // SEO & Responsive Init
     useEffect(() => {
@@ -98,16 +128,93 @@ export default function AdminDashboard() {
 
     const handleAddOffer = (e) => {
         e.preventDefault();
-        const offer = {
-            id: offers.length + 1,
-            ...newOffer,
-            status: 'Active',
-            applicants: 0
-        };
-        setOffers([offer, ...offers]);
+
+        if (newOffer.id) {
+            // Edit existing offer
+            setOffers(offers.map(o => o.id === newOffer.id ? { ...newOffer, applicants: o.applicants, status: o.status } : o));
+            alert("Offer Updated Successfully!");
+        } else {
+            // Add new offer
+            const offer = {
+                id: offers.length + 1,
+                ...newOffer,
+                status: 'Active',
+                applicants: 0
+            };
+            setOffers([offer, ...offers]);
+            alert("Offer Created Successfully!");
+        }
         setShowAddOfferModal(false);
-        setNewOffer({ company: '', position: '', country: '', flag: '', duration: '', stipend: '', field: '', deadline: '', urgent: false, description: '', requirements: '' });
-        alert("Offer Created Successfully!");
+        setNewOffer({ company: '', position: '', type: 'Open', country: '', city: '', flag: '', duration: '', stipend: '', field: '', deadline: '', urgent: false, description: '', requirements: '' });
+    };
+
+    const handleEditOffer = (offer) => {
+        setNewOffer({ ...offer });
+        setShowAddOfferModal(true);
+    };
+
+    const handleDeleteOffer = (id) => {
+        if (window.confirm("Are you sure you want to delete this offer? This action cannot be undone.")) {
+            setOffers(offers.filter(o => o.id !== id));
+        }
+    };
+
+    const handleApplicationAction = (id, action) => {
+        alert(`${action} action for application ID: ${id}`);
+    };
+
+    const handleAddMember = (e) => {
+        e.preventDefault();
+        const member = {
+            id: members.length + 200,
+            ...newMember,
+            status: 'Registered',
+            appliedCount: 0
+        };
+        setMembers([member, ...members]);
+        setShowAddMemberModal(false);
+        setNewMember({ name: '', studentId: '', year: '1st Year', department: '', email: '' });
+        alert("Member Added Successfully!");
+    };
+
+    const initiateDeleteMember = (member) => {
+        setMemberToDelete(member);
+        setDeleteMemberStep(1);
+    };
+
+    const confirmDeleteMember = () => {
+        if (deleteMemberStep === 1) {
+            setDeleteMemberStep(2);
+        } else if (deleteMemberStep === 2) {
+            setMembers(members.filter(m => m.id !== memberToDelete.id));
+            setDeleteMemberStep(0);
+            setMemberToDelete(null);
+            alert("Member Deleted Permanently.");
+        }
+    };
+
+    const cancelDeleteMember = () => {
+        setDeleteMemberStep(0);
+        setMemberToDelete(null);
+    };
+
+    const handleSendNotification = (e) => {
+        e.preventDefault();
+        const notification = {
+            id: notifications.length + 1,
+            ...newNotification,
+            date: new Date().toISOString().split('T')[0]
+        };
+        setNotifications([notification, ...notifications]);
+        setShowNotificationModal(false);
+        setNewNotification({ title: '', message: '', type: 'Info', recipient: 'All Members' });
+        alert("Notification Sent Successfully!");
+    };
+
+    const handleDeleteNotification = (id) => {
+        if (window.confirm("Delete this notification?")) {
+            setNotifications(notifications.filter(n => n.id !== id));
+        }
     };
 
     // --- Components ---
@@ -322,6 +429,7 @@ export default function AdminDashboard() {
                         <thead className="bg-gray-50 border-b border-gray-200">
                             <tr>
                                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Company/Role</th>
+                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Offer Type</th>
                                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Location</th>
                                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Applicants</th>
                                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Status</th>
@@ -343,7 +451,13 @@ export default function AdminDashboard() {
                                         </div>
                                     </td>
                                     <td className="px-6 py-4">
-                                        <span className="text-sm font-medium text-gray-700">{offer.country}</span>
+                                        <span className={`px-2 py-1 rounded text-xs font-bold border ${activeTab === 'offers' ? (offer.offerType === 'Open' ? 'bg-blue-50 text-blue-600 border-blue-100' : offer.offerType === 'FCFS' ? 'bg-orange-50 text-orange-600 border-orange-100' : 'bg-purple-50 text-purple-600 border-purple-100') : ''}`}>{offer.offerType}</span>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-medium text-gray-700">{offer.city}</span>
+                                            <span className="text-xs text-gray-500">{offer.country}</span>
+                                        </div>
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="flex -space-x-2 overflow-hidden">
@@ -358,8 +472,8 @@ export default function AdminDashboard() {
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 text-right">
-                                        <button className="text-gray-400 hover:text-[#0B3D59] mx-1"><EditIcon fontSize="small" /></button>
-                                        <button className="text-gray-400 hover:text-red-500 mx-1"><DeleteIcon fontSize="small" /></button>
+                                        <button onClick={() => handleEditOffer(offer)} className="text-gray-400 hover:text-[#0B3D59] mx-1"><EditIcon fontSize="small" /></button>
+                                        <button onClick={() => handleDeleteOffer(offer.id)} className="text-gray-400 hover:text-red-500 mx-1"><DeleteIcon fontSize="small" /></button>
                                     </td>
                                 </tr>
                             ))}
@@ -367,7 +481,7 @@ export default function AdminDashboard() {
                     </table>
                 </div>
             </div>
-        </div>
+        </div >
     );
 
     const ApplicationsView = () => (
@@ -399,9 +513,15 @@ export default function AdminDashboard() {
                                             {app.status}
                                         </span>
                                     </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <button className="text-[#0B3D59] hover:underline text-sm font-semibold mr-3">View</button>
-                                        <button className="text-gray-400 hover:text-gray-600"><MoreVertIcon fontSize="small" /></button>
+                                    <td className="px-6 py-4 text-right relative group">
+                                        <button onClick={() => handleApplicationAction(app.id, 'View')} className="text-[#0B3D59] hover:underline text-sm font-semibold mr-3">View</button>
+                                        <button className="text-gray-400 hover:text-gray-600 peer"><MoreVertIcon fontSize="small" /></button>
+                                        {/* Dropdown Menu */}
+                                        <div className="absolute right-0 top-8 w-32 bg-white shadow-lg rounded-lg py-1 border border-gray-100 hidden group-hover:block peer-focus:block z-20">
+                                            <button onClick={() => handleApplicationAction(app.id, 'Approve')} className="block w-full text-left px-4 py-2 text-sm text-green-600 hover:bg-gray-50">Approve</button>
+                                            <button onClick={() => handleApplicationAction(app.id, 'Reject')} className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-50">Reject</button>
+                                            <button onClick={() => handleApplicationAction(app.id, 'Delete')} className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Delete</button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
@@ -411,6 +531,105 @@ export default function AdminDashboard() {
             </div>
         </div>
     );
+
+    const MembersView = () => {
+        const [filterYear, setFilterYear] = useState('All');
+        const [filterStatus, setFilterStatus] = useState('All');
+
+        // Sorting: Applicants appear at top
+        const sortedMembers = [...members].sort((a, b) => {
+            if (a.appliedCount > 0 && b.appliedCount === 0) return -1;
+            if (a.appliedCount === 0 && b.appliedCount > 0) return 1;
+            return 0;
+        });
+
+        const filteredMembers = sortedMembers.filter(m => {
+            const matchesYear = filterYear === 'All' || m.year === filterYear;
+            const matchesStatus = filterStatus === 'All' || m.status === filterStatus;
+            return matchesYear && matchesStatus;
+        });
+
+        return (
+            <div className="space-y-6 animate-fade-in-up">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
+                    <h3 className="text-xl font-bold text-gray-800">Manage Members</h3>
+                    <button
+                        onClick={() => setShowAddMemberModal(true)}
+                        className="flex items-center px-4 py-2 bg-[#0B3D59] text-white rounded-lg hover:bg-[#09314a] transition-all shadow-md w-full sm:w-auto justify-center"
+                    >
+                        <AddIcon className="mr-2" />
+                        Add Member
+                    </button>
+                </div>
+
+                {/* Filters */}
+                <div className="flex gap-4 mb-4">
+                    <select className="p-2 border border-gray-200 rounded-lg text-sm" value={filterYear} onChange={e => setFilterYear(e.target.value)}>
+                        <option value="All">All Years</option>
+                        <option value="1st Year">1st Year</option>
+                        <option value="2nd Year">2nd Year</option>
+                        <option value="3rd Year">3rd Year</option>
+                        <option value="4th Year">4th Year</option>
+                    </select>
+                    <select className="p-2 border border-gray-200 rounded-lg text-sm" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+                        <option value="All">All Statuses</option>
+                        <option value="Registered">Registered</option>
+                        <option value="Applied">Applied</option>
+                        <option value="Placed">Placed</option>
+                        <option value="Rejected">Rejected</option>
+                    </select>
+                </div>
+
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left min-w-[800px]">
+                            <thead className="bg-gray-50 border-b border-gray-200">
+                                <tr>
+                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Name/ID</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Year/Dept</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Offers Applied</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Status</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {filteredMembers.map(member => (
+                                    <tr key={member.id} className="hover:bg-gray-50 transition-colors">
+                                        <td className="px-6 py-4">
+                                            <p className="font-bold text-gray-800">{member.name}</p>
+                                            <p className="text-xs text-gray-500">{member.studentId}</p>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <p className="text-sm text-gray-700">{member.year}</p>
+                                            <p className="text-xs text-gray-500">{member.department}</p>
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            <span className={`inline-flex items-center justify-center px-2 py-1 rounded-full text-xs font-bold ${member.appliedCount > 0 ? 'bg-blue-100 text-[#0B3D59]' : 'bg-gray-100 text-gray-400'}`}>
+                                                {member.appliedCount}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <span className={`px-2 py-1 rounded text-xs font-bold 
+                                                ${member.status === 'Placed' ? 'bg-green-100 text-green-700' :
+                                                    member.status === 'Applied' ? 'bg-blue-100 text-blue-700' :
+                                                        member.status === 'Rejected' ? 'bg-red-50 text-red-600' :
+                                                            'bg-gray-100 text-gray-600'}`}>
+                                                {member.status}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 text-right">
+                                            <button className="text-gray-400 hover:text-[#0B3D59] mx-1"><EditIcon fontSize="small" /></button>
+                                            <button onClick={() => initiateDeleteMember(member)} className="text-gray-400 hover:text-red-500 mx-1"><DeleteIcon fontSize="small" /></button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        );
+    };
 
     const StatCard = ({ title, value, icon, color, change }) => (
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
@@ -430,6 +649,49 @@ export default function AdminDashboard() {
         </div>
     );
 
+    const NotificationsView = () => {
+        return (
+            <div className="space-y-6 animate-fade-in-up">
+                <div className="flex justify-between items-center">
+                    <h3 className="text-xl font-bold text-gray-800">Manage Notifications</h3>
+                    <button
+                        onClick={() => setShowNotificationModal(true)}
+                        className="flex items-center px-4 py-2 bg-[#0B3D59] text-white rounded-lg hover:bg-[#09314a] transition-all shadow-md"
+                    >
+                        <AddIcon className="mr-2" />
+                        Send Notification
+                    </button>
+                </div>
+
+                <div className="grid gap-4">
+                    {notifications.map(note => (
+                        <div key={note.id} className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex justify-between items-start hover:shadow-md transition-shadow">
+                            <div>
+                                <div className="flex items-center gap-3 mb-1">
+                                    <span className={`px-2 py-0.5 rounded text-xs font-bold 
+                                        ${note.type === 'Offer' ? 'bg-blue-100 text-blue-700' :
+                                            note.type === 'Alert' ? 'bg-red-100 text-red-700' :
+                                                'bg-green-100 text-green-700'}`}>
+                                        {note.type}
+                                    </span>
+                                    <span className="text-gray-400 text-xs flex items-center gap-1">
+                                        <TimeIcon style={{ fontSize: 12 }} /> {note.date}
+                                    </span>
+                                    <span className="text-gray-400 text-xs">To: {note.recipient}</span>
+                                </div>
+                                <h4 className="font-bold text-gray-800 text-lg">{note.title}</h4>
+                                <p className="text-gray-600 mt-1">{note.message}</p>
+                            </div>
+                            <button onClick={() => handleDeleteNotification(note.id)} className="text-gray-300 hover:text-red-500 transition-colors p-2">
+                                <DeleteIcon fontSize="small" />
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    };
+
     const AddOfferModal = () => (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
             <motion.div
@@ -438,7 +700,7 @@ export default function AdminDashboard() {
                 className="bg-white rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl"
             >
                 <div className="p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10">
-                    <h3 className="text-2xl font-bold text-[#0B3D59]">Create New Offer</h3>
+                    <h3 className="text-2xl font-bold text-[#0B3D59]">{newOffer.id ? 'Edit Offer' : 'Create New Offer'}</h3>
                     <button onClick={() => setShowAddOfferModal(false)} className="text-gray-400 hover:text-gray-600">
                         <CancelIcon />
                     </button>
@@ -456,13 +718,28 @@ export default function AdminDashboard() {
                             <input required type="text" className="w-full border border-gray-200 rounded-lg p-3 focus:ring-2 focus:ring-[#0B3D59] outline-none"
                                 value={newOffer.position} onChange={e => setNewOffer({ ...newOffer, position: e.target.value })} placeholder="e.g. Frontend Intern" />
                         </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-bold text-gray-700">Offer Type</label>
+                            <select className="w-full border border-gray-200 rounded-lg p-3 focus:ring-2 focus:ring-[#0B3D59] outline-none bg-white"
+                                value={newOffer.type} onChange={e => setNewOffer({ ...newOffer, type: e.target.value })}>
+                                <option value="Open">Open Offer</option>
+                                <option value="FCFS">FCFS Offer</option>
+                                <option value="Global">Global Offer</option>
+                                <option value="AGC">AGC Offer</option>
+                            </select>
+                        </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
                         <div className="space-y-2">
                             <label className="text-sm font-bold text-gray-700">Country</label>
                             <input required type="text" className="w-full border border-gray-200 rounded-lg p-3 focus:ring-2 focus:ring-[#0B3D59] outline-none"
                                 value={newOffer.country} onChange={e => setNewOffer({ ...newOffer, country: e.target.value })} placeholder="e.g. Germany" />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-bold text-gray-700">City</label>
+                            <input required type="text" className="w-full border border-gray-200 rounded-lg p-3 focus:ring-2 focus:ring-[#0B3D59] outline-none"
+                                value={newOffer.city} onChange={e => setNewOffer({ ...newOffer, city: e.target.value })} placeholder="e.g. Munich" />
                         </div>
                         <div className="space-y-2">
                             <label className="text-sm font-bold text-gray-700">Flag Emoji</label>
@@ -514,7 +791,144 @@ export default function AdminDashboard() {
 
                     <div className="pt-4 border-t border-gray-100 flex justify-end space-x-4">
                         <button type="button" onClick={() => setShowAddOfferModal(false)} className="px-6 py-3 rounded-lg text-gray-500 font-bold hover:bg-gray-100 transition-colors">Cancel</button>
-                        <button type="submit" className="px-8 py-3 rounded-lg bg-[#0B3D59] text-white font-bold hover:bg-[#09314a] shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1">Publish Offer</button>
+                        <button type="submit" className="px-8 py-3 rounded-lg bg-[#0B3D59] text-white font-bold hover:bg-[#09314a] shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1">
+                            {newOffer.id ? 'Save Changes' : 'Publish Offer'}
+                        </button>
+                    </div>
+                </form>
+            </motion.div>
+        </div>
+    );
+
+    const AddMemberModal = () => (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+            <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden"
+            >
+                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                    <h3 className="text-xl font-bold text-[#0B3D59]">Add New Member</h3>
+                    <button onClick={() => setShowAddMemberModal(false)} className="text-gray-400 hover:text-gray-600">
+                        <CancelIcon />
+                    </button>
+                </div>
+                <form onSubmit={handleAddMember} className="p-6 space-y-4">
+                    <div>
+                        <label className="text-sm font-bold text-gray-700 block mb-1">Full Name</label>
+                        <input required type="text" className="w-full border border-gray-200 rounded-lg p-3 focus:ring-2 focus:ring-[#0B3D59] outline-none"
+                            value={newMember.name} onChange={e => setNewMember({ ...newMember, name: e.target.value })} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-sm font-bold text-gray-700 block mb-1">Student ID</label>
+                            <input required type="text" className="w-full border border-gray-200 rounded-lg p-3 focus:ring-2 focus:ring-[#0B3D59] outline-none"
+                                value={newMember.studentId} onChange={e => setNewMember({ ...newMember, studentId: e.target.value })} />
+                        </div>
+                        <div>
+                            <label className="text-sm font-bold text-gray-700 block mb-1">Year</label>
+                            <select className="w-full border border-gray-200 rounded-lg p-3 focus:ring-2 focus:ring-[#0B3D59] outline-none bg-white"
+                                value={newMember.year} onChange={e => setNewMember({ ...newMember, year: e.target.value })}>
+                                <option>1st Year</option>
+                                <option>2nd Year</option>
+                                <option>3rd Year</option>
+                                <option>4th Year</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label className="text-sm font-bold text-gray-700 block mb-1">Department</label>
+                        <input required type="text" className="w-full border border-gray-200 rounded-lg p-3 focus:ring-2 focus:ring-[#0B3D59] outline-none"
+                            value={newMember.department} onChange={e => setNewMember({ ...newMember, department: e.target.value })} />
+                    </div>
+                    <div className="pt-4 flex justify-end space-x-3">
+                        <button type="button" onClick={() => setShowAddMemberModal(false)} className="px-4 py-2 text-gray-500 font-semibold hover:bg-gray-100 rounded-lg">Cancel</button>
+                        <button type="submit" className="px-6 py-2 bg-[#0B3D59] text-white font-bold rounded-lg hover:bg-[#09314a]">Add Member</button>
+                    </div>
+                </form>
+            </motion.div>
+        </div>
+    );
+
+    const DeleteConfirmationModal = () => (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-fade-in">
+            <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden p-6 text-center"
+            >
+                <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <DeleteIcon fontSize="large" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-800 mb-2">
+                    {deleteMemberStep === 1 ? 'Delete Member?' : 'Final Confirmation'}
+                </h3>
+                <p className="text-gray-500 mb-6">
+                    {deleteMemberStep === 1
+                        ? `Are you sure you want to delete ${memberToDelete?.name}?`
+                        : "This action entails permanent removal from the database. Are you absolutely sure?"}
+                </p>
+                <div className="flex justify-center space-x-3">
+                    <button onClick={cancelDeleteMember} className="px-6 py-2 bg-gray-100 text-gray-700 font-bold rounded-lg hover:bg-gray-200">Cancel</button>
+                    <button onClick={confirmDeleteMember} className="px-6 py-2 bg-red-500 text-white font-bold rounded-lg hover:bg-red-600 shadow-lg">
+                        {deleteMemberStep === 1 ? 'Yes, Continue' : 'Delete Permanently'}
+                    </button>
+                </div>
+            </motion.div>
+        </div>
+    );
+
+    const NotificationModal = () => (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+            <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden"
+            >
+                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                    <h3 className="text-xl font-bold text-[#0B3D59]">Send Notification</h3>
+                    <button onClick={() => setShowNotificationModal(false)} className="text-gray-400 hover:text-gray-600">
+                        <CancelIcon />
+                    </button>
+                </div>
+                <form onSubmit={handleSendNotification} className="p-6 space-y-4">
+                    <div>
+                        <label className="text-sm font-bold text-gray-700 block mb-1">Title</label>
+                        <input required type="text" className="w-full border border-gray-200 rounded-lg p-3 focus:ring-2 focus:ring-[#0B3D59] outline-none"
+                            value={newNotification.title} onChange={e => setNewNotification({ ...newNotification, title: e.target.value })}
+                            placeholder="e.g. New Offer in Germany" />
+                    </div>
+                    <div>
+                        <label className="text-sm font-bold text-gray-700 block mb-1">Message</label>
+                        <textarea required className="w-full border border-gray-200 rounded-lg p-3 focus:ring-2 focus:ring-[#0B3D59] outline-none resize-none h-32"
+                            value={newNotification.message} onChange={e => setNewNotification({ ...newNotification, message: e.target.value })}
+                            placeholder="Enter your message here..." />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-sm font-bold text-gray-700 block mb-1">Type</label>
+                            <select className="w-full border border-gray-200 rounded-lg p-3 focus:ring-2 focus:ring-[#0B3D59] outline-none bg-white"
+                                value={newNotification.type} onChange={e => setNewNotification({ ...newNotification, type: e.target.value })}>
+                                <option>Info</option>
+                                <option>Offer</option>
+                                <option>Alert</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="text-sm font-bold text-gray-700 block mb-1">Recipient Group</label>
+                            <select className="w-full border border-gray-200 rounded-lg p-3 focus:ring-2 focus:ring-[#0B3D59] outline-none bg-white"
+                                value={newNotification.recipient} onChange={e => setNewNotification({ ...newNotification, recipient: e.target.value })}>
+                                <option>All Members</option>
+                                <option>1st Year</option>
+                                <option>2nd Year</option>
+                                <option>3rd Year</option>
+                                <option>4th Year</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div className="pt-4 flex justify-end space-x-3">
+                        <button type="button" onClick={() => setShowNotificationModal(false)} className="px-4 py-2 text-gray-500 font-semibold hover:bg-gray-100 rounded-lg">Cancel</button>
+                        <button type="submit" className="px-6 py-2 bg-[#0B3D59] text-white font-bold rounded-lg hover:bg-[#09314a]">Send</button>
                     </div>
                 </form>
             </motion.div>
@@ -547,7 +961,9 @@ export default function AdminDashboard() {
                             {activeTab === 'dashboard' && <DashboardView />}
                             {activeTab === 'offers' && <OffersView />}
                             {activeTab === 'applications' && <ApplicationsView />}
-                            {activeTab !== 'dashboard' && activeTab !== 'offers' && activeTab !== 'applications' && (
+                            {activeTab === 'members' && <MembersView />}
+                            {activeTab === 'notifications' && <NotificationsView />}
+                            {activeTab !== 'dashboard' && activeTab !== 'offers' && activeTab !== 'applications' && activeTab !== 'members' && activeTab !== 'notifications' && (
                                 <div className="flex items-center justify-center h-96 text-gray-400">
                                     <div className="text-center">
                                         <SettingsIcon style={{ fontSize: 64, opacity: 0.5 }} />
@@ -561,6 +977,9 @@ export default function AdminDashboard() {
             </div>
 
             {showAddOfferModal && <AddOfferModal />}
+            {showAddMemberModal && <AddMemberModal />}
+            {showNotificationModal && <NotificationModal />}
+            {deleteMemberStep > 0 && <DeleteConfirmationModal />}
         </div>
     );
 }

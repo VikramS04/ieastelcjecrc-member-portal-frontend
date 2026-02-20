@@ -25,7 +25,14 @@ import {
     Close as CloseIcon,
     ChevronLeft as ChevronLeftIcon,
     ChevronRight as ChevronRightIcon,
-    Menu as MenuIcon
+    Menu as MenuIcon,
+    Cancel as CancelIcon,
+    HourglassEmpty as PendingIcon,
+    Visibility as ViewIcon,
+    FilterList as FilterIcon,
+    Timeline as TimelineIcon,
+    CheckCircleOutline as CheckOutlineIcon,
+    ErrorOutline as ErrorIcon
 } from '@mui/icons-material';
 import {
     Chart as ChartJS,
@@ -47,10 +54,10 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarEleme
 
 // Mock Data
 const OFFERS = [
-    { id: 1, country: 'Germany', flag: '🇩🇪', company: 'BMW Group', position: 'Software Engineering Intern', duration: '6 Months', stipend: '€1200/mo', field: 'Computer Science', deadline: '2026-03-01', urgent: true },
-    { id: 2, country: 'Switzerland', flag: '🇨🇭', company: 'CERN', position: 'Research Assistant', duration: '12 Months', stipend: 'CHF 3500/mo', field: 'Physics / IT', deadline: '2026-03-15', urgent: false },
-    { id: 3, country: 'Japan', flag: '🇯🇵', company: 'Toyota', position: 'R&D Intern', duration: '3 Months', stipend: '¥150,000/mo', field: 'Mechanical Eng.', deadline: '2026-02-28', urgent: true },
-    { id: 4, country: 'Sweden', flag: '🇸🇪', company: 'Spotify', position: 'Data Science Intern', duration: '6 Months', stipend: 'SEK 25,000/mo', field: 'Data Science', deadline: '2026-04-10', urgent: false },
+    { id: 1, country: 'Germany', city: 'Munich', flag: '🇩🇪', company: 'BMW Group', position: 'Software Engineering Intern', duration: '6 Months', stipend: '€1200/mo', field: 'Computer Science', deadline: '2026-03-01', urgent: true, offerType: 'Open' },
+    { id: 2, country: 'Switzerland', city: 'Geneva', flag: '🇨🇭', company: 'CERN', position: 'Research Assistant', duration: '12 Months', stipend: 'CHF 3500/mo', field: 'Physics / IT', deadline: '2026-03-15', urgent: false, offerType: 'FCFS' },
+    { id: 3, country: 'Japan', city: 'Tokyo', flag: '🇯🇵', company: 'Toyota', position: 'R&D Intern', duration: '3 Months', stipend: '¥150,000/mo', field: 'Mechanical Eng.', deadline: '2026-02-28', urgent: true, offerType: 'Global' },
+    { id: 4, country: 'Sweden', city: 'Stockholm', flag: '🇸🇪', company: 'Spotify', position: 'Data Science Intern', duration: '6 Months', stipend: 'SEK 25,000/mo', field: 'Data Science', deadline: '2026-04-10', urgent: false, offerType: 'Open' },
 ];
 
 const NOTIFICATIONS = [
@@ -59,17 +66,98 @@ const NOTIFICATIONS = [
     { id: 3, title: 'Document verification approved', time: '1 day ago', type: 'success' },
 ];
 
+const APPLICATIONS = [
+    {
+        id: 101,
+        refNo: 'DE-2026-1042',
+        company: 'BMW Group',
+        position: 'Software Engineering Intern',
+        country: 'Germany',
+        flag: '🇩🇪',
+        appliedDate: 'Jan 15, 2026',
+        status: 'Nominated',
+        color: 'text-blue-600 bg-blue-50',
+        timeline: [
+            { title: 'Application Submitted', date: 'Jan 15, 2026', status: 'completed', description: 'Your application has been successfully submitted to the local committee.' },
+            { title: 'Document Verification', date: 'Jan 18, 2026', status: 'completed', description: 'All required documents have been verified by the exchange coordinator.' },
+            { title: 'Nominated by Home LC', date: 'Feb 02, 2026', status: 'completed', description: 'Congratulations! You have been nominated for this offer.' },
+            { title: 'Awaiting Host Acceptance', date: 'In Progress', status: 'current', description: 'The receiving country is currently reviewing your nomination.' },
+            { title: 'Final Acceptance', date: '-', status: 'upcoming', description: 'Final decision from the employer.' }
+        ]
+    },
+    {
+        id: 102,
+        refNo: 'CH-2026-0089',
+        company: 'CERN',
+        position: 'Research Assistant',
+        country: 'Switzerland',
+        flag: '🇨🇭',
+        appliedDate: 'Jan 20, 2026',
+        status: 'Pending',
+        color: 'text-yellow-600 bg-yellow-50',
+        timeline: [
+            { title: 'Application Submitted', date: 'Jan 20, 2026', status: 'completed', description: 'Application received.' },
+            { title: 'Document Verification', date: 'In Progress', status: 'current', description: 'Pending verification of transcripts and CV.' },
+            { title: 'Nominated by Home LC', date: '-', status: 'upcoming', description: 'Selection process by your local committee.' },
+            { title: 'Final Acceptance', date: '-', status: 'upcoming', description: '-' }
+        ]
+    },
+    {
+        id: 103,
+        refNo: 'JP-2026-5521',
+        company: 'Toyota',
+        position: 'R&D Intern',
+        country: 'Japan',
+        flag: '🇯🇵',
+        appliedDate: 'Dec 10, 2025',
+        status: 'Rejected',
+        color: 'text-red-600 bg-red-50',
+        timeline: [
+            { title: 'Application Submitted', date: 'Dec 10, 2025', status: 'completed', description: 'Application received.' },
+            { title: 'Document Verification', date: 'Dec 12, 2025', status: 'completed', description: 'Documents verified.' },
+            { title: 'Nominated by Home LC', date: 'Dec 20, 2025', status: 'completed', description: 'Nominated for the position.' },
+            { title: 'Host Decision', date: 'Jan 05, 2026', status: 'rejected', description: 'Unfortunately, the employer has decided to proceed with other candidates.' }
+        ]
+    },
+    {
+        id: 104,
+        refNo: 'SE-2026-2201',
+        company: 'Spotify',
+        position: 'Data Science Intern',
+        country: 'Sweden',
+        flag: '🇸🇪',
+        appliedDate: 'Feb 12, 2026',
+        status: 'Accepted',
+        color: 'text-green-600 bg-green-50',
+        timeline: [
+            { title: 'Application Submitted', date: 'Feb 12, 2026', status: 'completed', description: 'Application received.' },
+            { title: 'Document Verification', date: 'Feb 14, 2026', status: 'completed', description: 'Documents verified.' },
+            { title: 'Nominated by Home LC', date: 'Feb 20, 2026', status: 'completed', description: 'Nominated.' },
+            { title: 'Host Acceptance', date: 'Feb 28, 2026', status: 'completed', description: 'Accepted by the employer!' },
+            { title: 'Visa Process', date: 'In Progress', status: 'current', description: 'Preparing visa documents.' }
+        ]
+    }
+];
+
 export default function MemberDashboard() {
     const [activeTab, setActiveTab] = useState('dashboard');
     const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 768);
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
     const [selectedOffer, setSelectedOffer] = useState(null);
+    const [viewingApplication, setViewingApplication] = useState(null);
+    const [showWelcomeNotification, setShowWelcomeNotification] = useState(false);
+    const [showurNotifications, setShowNotifications] = useState(false);
 
     const navigate = useNavigate();
 
     // SEO & Responsive Init
     useEffect(() => {
         document.title = "Member Dashboard | IAESTE LC JECRC";
+
+        // Simulate Welcome Notification on Login
+        const timer = setTimeout(() => {
+            setShowWelcomeNotification(true);
+        }, 1500);
 
         const handleResize = () => {
             const mobile = window.innerWidth < 768;
@@ -82,7 +170,10 @@ export default function MemberDashboard() {
         };
 
         window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
+        return () => {
+            window.removeEventListener('resize', handleResize);
+            clearTimeout(timer);
+        };
     }, []);
 
     const handleLogout = () => {
@@ -230,9 +321,44 @@ export default function MemberDashboard() {
                     </div>
                     <input type="text" placeholder="Search..." className="pl-10 pr-4 py-2 rounded-full bg-gray-100 border-none focus:ring-2 focus:ring-[#003366]/20 transition-all w-48 lg:w-64" />
                 </div>
-                <div className="relative cursor-pointer">
+                <div className="relative cursor-pointer" onClick={() => setShowNotifications(!showurNotifications)}>
                     <NotificationsIcon className="text-gray-600 hover:text-[#003366] transition-colors" />
                     <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#D62828] rounded-full ring-2 ring-white"></span>
+
+                    {/* Notification Dropdown */}
+                    <AnimatePresence>
+                        {showurNotifications && (
+                            <motion.div
+                                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                className="absolute right-0 top-10 w-80 bg-white rounded-xl shadow-xl border border-gray-100 z-[100] overflow-hidden"
+                            >
+                                <div className="p-4 border-b border-gray-50 flex justify-between items-center bg-gray-50/50">
+                                    <h4 className="font-bold text-gray-800">Notifications</h4>
+                                    <span className="text-xs text-[#003366] font-semibold cursor-pointer hover:underline">Mark all read</span>
+                                </div>
+                                <div className="max-h-80 overflow-y-auto">
+                                    {NOTIFICATIONS.map(note => (
+                                        <div key={note.id} className="p-4 border-b border-gray-50 hover:bg-blue-50/30 transition-colors cursor-pointer">
+                                            <div className="flex items-start gap-3">
+                                                <div className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${note.type === 'offer' ? 'bg-blue-500' :
+                                                    note.type === 'alert' ? 'bg-red-500' : 'bg-green-500'
+                                                    }`} />
+                                                <div>
+                                                    <p className="text-sm font-semibold text-gray-800 leading-tight">{note.title}</p>
+                                                    <p className="text-xs text-gray-400 mt-1">{note.time}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="p-3 text-center border-t border-gray-50 bg-gray-50/30">
+                                    <button className="text-xs font-bold text-[#003366] hover:underline">View All Notifications</button>
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </div>
                 <div className="flex items-center space-x-3 pl-4 border-l border-gray-200">
                     <div className="text-right hidden md:block">
@@ -356,7 +482,16 @@ export default function MemberDashboard() {
                             <span className="text-4xl mr-4">{offer.flag}</span>
                             <div>
                                 <h3 className="font-bold text-lg text-gray-800 group-hover:text-[#003366] transition-colors">{offer.company}</h3>
-                                <p className="text-sm text-gray-500">{offer.country}</p>
+                                <div className="flex flex-wrap items-center gap-2 mt-1">
+                                    <span className={`px-2 py-0.5 rounded text-xs font-bold border ${offer.offerType === 'Open' ? 'bg-blue-50 text-blue-600 border-blue-100' :
+                                        offer.offerType === 'FCFS' ? 'bg-orange-50 text-orange-600 border-orange-100' :
+                                            offer.offerType === 'Global' ? 'bg-purple-50 text-purple-600 border-purple-100' :
+                                                'bg-teal-50 text-teal-600 border-teal-100'
+                                        }`}>
+                                        {offer.offerType} Offer
+                                    </span>
+                                    <span className="flex items-center gap-1 text-sm text-gray-500"><LocationIcon className="w-3.5 h-3.5" /> {offer.city}, {offer.country}</span>
+                                </div>
                             </div>
                         </div>
                         <div className="space-y-3 mb-6">
@@ -379,6 +514,229 @@ export default function MemberDashboard() {
             </div>
         </div>
     );
+
+    const ApplicationsView = () => {
+        const [filter, setFilter] = useState('All');
+        const [search, setSearch] = useState('');
+
+        const filteredApps = APPLICATIONS.filter(app => {
+            const matchesFilter = filter === 'All' || app.status === filter;
+            const matchesSearch = app.company.toLowerCase().includes(search.toLowerCase()) ||
+                app.position.toLowerCase().includes(search.toLowerCase()) ||
+                app.refNo.toLowerCase().includes(search.toLowerCase());
+            return matchesFilter && matchesSearch;
+        });
+
+        const getStatusColor = (status) => {
+            switch (status) {
+                case 'Accepted': return 'bg-green-100 text-green-700 border-green-200';
+                case 'Rejected': return 'bg-red-100 text-red-700 border-red-200';
+                case 'Nominated': return 'bg-blue-100 text-blue-700 border-blue-200';
+                default: return 'bg-yellow-100 text-yellow-700 border-yellow-200';
+            }
+        };
+
+        const getStatusIcon = (status) => {
+            switch (status) {
+                case 'Accepted': return <CheckCircleIcon fontSize="small" />;
+                case 'Rejected': return <CancelIcon fontSize="small" />;
+                case 'Nominated': return <NominationIcon fontSize="small" />;
+                default: return <PendingIcon fontSize="small" />;
+            }
+        };
+
+        return (
+            <div className="space-y-6 animate-fade-in-up">
+                {/* Controls */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+                    <div className="flex items-center space-x-2 md:space-x-4 overflow-x-auto hide-scrollbar pb-2 md:pb-0">
+                        {['All', 'Pending', 'Nominated', 'Accepted', 'Rejected'].map(status => (
+                            <button
+                                key={status}
+                                onClick={() => setFilter(status)}
+                                className={`px-4 py-2 rounded-full text-sm font-semibold transition-all whitespace-nowrap ${filter === status
+                                    ? 'bg-[#003366] text-white shadow-md'
+                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                    }`}
+                            >
+                                {status}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="relative">
+                        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+                        <input
+                            type="text"
+                            placeholder="Search applications..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            className="pl-10 pr-4 py-2 w-full md:w-64 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#003366]/20 focus:border-[#003366] outline-none transition-all"
+                        />
+                    </div>
+                </div>
+
+                {/* Applications Grid/List */}
+                {filteredApps.length > 0 ? (
+                    <div className="grid gap-4">
+                        {filteredApps.map((app) => (
+                            <motion.div
+                                key={app.id}
+                                layout
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow group relative overflow-hidden"
+                            >
+                                {/* Status Strip */}
+                                <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${app.status === 'Accepted' ? 'bg-green-500' :
+                                    app.status === 'Rejected' ? 'bg-red-500' :
+                                        app.status === 'Nominated' ? 'bg-blue-500' : 'bg-yellow-500'
+                                    }`}></div>
+
+                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pl-3">
+                                    <div className="flex items-start md:items-center gap-4">
+                                        <div className="text-4xl shadow-sm rounded-lg p-1 bg-gray-50 border border-gray-100">{app.flag}</div>
+                                        <div>
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <h3 className="font-bold text-gray-800 text-lg group-hover:text-[#003366] transition-colors">{app.company}</h3>
+                                                <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border flex items-center gap-1 ${getStatusColor(app.status)}`}>
+                                                    {getStatusIcon(app.status)}
+                                                    {app.status}
+                                                </span>
+                                            </div>
+                                            <p className="text-gray-600 font-medium">{app.position}</p>
+                                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-sm text-gray-400">
+                                                <span className="flex items-center gap-1"><LocationIcon className="w-3.5 h-3.5" /> {app.country}</span>
+                                                <span className="w-1 h-1 rounded-full bg-gray-300 hidden md:block"></span>
+                                                <span>Ref: {app.refNo}</span>
+                                                <span className="w-1 h-1 rounded-full bg-gray-300 hidden md:block"></span>
+                                                <span>Applied: {app.appliedDate}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-3 mt-2 md:mt-0 w-full md:w-auto">
+                                        <button
+                                            onClick={() => setViewingApplication(app)}
+                                            className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-[#eff6ff] text-[#003366] font-semibold rounded-xl hover:bg-[#003366] hover:text-white transition-all transform hover:-translate-y-0.5 active:translate-y-0 text-sm"
+                                        >
+                                            <TimelineIcon className="w-4 h-4" />
+                                            Track Status
+                                        </button>
+                                        <button className="p-2.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors">
+                                            <ViewIcon />
+                                        </button>
+                                    </div>
+                                </div>
+                            </motion.div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="text-center py-20 bg-white rounded-2xl border border-gray-100 border-dashed">
+                        <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-400">
+                            <SearchIcon fontSize="large" />
+                        </div>
+                        <h3 className="text-lg font-bold text-gray-800">No applications found</h3>
+                        <p className="text-gray-500">Try adjusting your search or filters.</p>
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    const ApplicationStatusModal = ({ app, onClose }) => {
+        if (!app) return null;
+
+        return (
+            <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+                >
+                    <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                        <div className="flex items-center gap-3">
+                            <span className="text-3xl">{app.flag}</span>
+                            <div>
+                                <h3 className="font-bold text-gray-800 text-lg">{app.company}</h3>
+                                <p className="text-sm text-gray-500">{app.position} • {app.refNo}</p>
+                            </div>
+                        </div>
+                        <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors">
+                            <CloseIcon />
+                        </button>
+                    </div>
+
+                    <div className="p-6 md:p-8 overflow-y-auto custom-scrollbar">
+                        <h4 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-6">Application Timeline</h4>
+
+                        <div className="relative pl-4 space-y-8 md:space-y-0">
+                            {/* Vertical Line */}
+                            <div className="absolute left-[27px] top-2 bottom-4 w-0.5 bg-gray-200 hidden md:block"></div>
+
+                            {app.timeline.map((item, index) => {
+                                let statusColor = 'bg-gray-200 text-gray-400';
+                                let Icon = <div className="w-3 h-3 bg-gray-400 rounded-full" />;
+                                let borderColor = 'border-gray-200';
+
+                                if (item.status === 'completed') {
+                                    statusColor = 'bg-green-100 text-green-600';
+                                    Icon = <CheckCircleIcon fontSize="small" />;
+                                    borderColor = 'border-green-200';
+                                } else if (item.status === 'current') {
+                                    statusColor = 'bg-blue-100 text-blue-600 ring-4 ring-blue-50';
+                                    Icon = <PendingIcon fontSize="small" className="animate-spin" />;
+                                    borderColor = 'border-blue-200';
+                                } else if (item.status === 'rejected') {
+                                    statusColor = 'bg-red-100 text-red-600';
+                                    Icon = <CancelIcon fontSize="small" />;
+                                    borderColor = 'border-red-200';
+                                }
+
+                                return (
+                                    <div key={index} className="relative md:pl-12 md:pb-8 group">
+                                        {/* Connector for mobile */}
+                                        {index !== app.timeline.length - 1 && (
+                                            <div className="absolute left-[27px] top-10 bottom-[-20px] w-0.5 bg-gray-200 block md:hidden"></div>
+                                        )}
+
+                                        {/* Dot/Icon */}
+                                        <div className={`absolute left-0 md:left-2 top-0 w-10 h-10 rounded-full flex items-center justify-center border-2 z-10 transition-all duration-300 ${statusColor} ${borderColor} bg-white`}>
+                                            {Icon}
+                                        </div>
+
+                                        <div className={`ml-14 md:ml-0 p-4 rounded-xl border transition-all duration-300 ${item.status === 'current' ? 'bg-blue-50/50 border-blue-100 shadow-sm' : 'bg-white border-gray-100 hover:border-gray-200'}`}>
+                                            <div className="flex flex-col md:flex-row md:items-center justify-between mb-1">
+                                                <h5 className={`font-bold ${item.status === 'completed' ? 'text-gray-800' : item.status === 'current' ? 'text-[#003366]' : 'text-gray-500'}`}>
+                                                    {item.title}
+                                                </h5>
+                                                {item.date && (
+                                                    <span className="text-xs font-semibold px-2 py-1 rounded-md bg-white border border-gray-100 text-gray-500 shadow-sm">
+                                                        {item.date}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <p className="text-sm text-gray-500 leading-relaxed">{item.description}</p>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+                        <button
+                            onClick={onClose}
+                            className="px-6 py-2 bg-white border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 font-medium transition-colors"
+                        >
+                            Close
+                        </button>
+                    </div>
+                </motion.div>
+            </div>
+        );
+    };
 
     const OfferDetailModal = ({ offer, onClose }) => {
         const [detailTab, setDetailTab] = useState('Overview');
@@ -471,6 +829,13 @@ export default function MemberDashboard() {
                                                         <div>
                                                             <p className="text-xs text-gray-500">Stipend</p>
                                                             <p className="font-semibold">{offer.stipend}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center text-gray-700 col-span-1 sm:col-span-2">
+                                                        <div className="p-2 bg-blue-50 rounded-lg mr-3 text-[#003366]"><BookmarkIcon /></div>
+                                                        <div>
+                                                            <p className="text-xs text-gray-500">Offer Type</p>
+                                                            <p className="font-semibold">{offer.offerType} Offer</p>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -600,7 +965,8 @@ export default function MemberDashboard() {
                         >
                             {activeTab === 'dashboard' && <DashboardView />}
                             {activeTab === 'offers' && <OffersView />}
-                            {activeTab !== 'dashboard' && activeTab !== 'offers' && (
+                            {activeTab === 'applications' && <ApplicationsView />}
+                            {activeTab !== 'dashboard' && activeTab !== 'offers' && activeTab !== 'applications' && (
                                 <div className="flex items-center justify-center h-96 text-gray-400">
                                     <div className="text-center">
                                         <NominationIcon style={{ fontSize: 64, opacity: 0.5 }} />
@@ -617,6 +983,45 @@ export default function MemberDashboard() {
             <AnimatePresence>
                 {selectedOffer && (
                     <OfferDetailModal offer={selectedOffer} onClose={() => setSelectedOffer(null)} />
+                )}
+                {viewingApplication && (
+                    <ApplicationStatusModal app={viewingApplication} onClose={() => setViewingApplication(null)} />
+                )}
+            </AnimatePresence>
+
+            {/* Welcome Notification Popup */}
+            <AnimatePresence>
+                {showWelcomeNotification && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 50, x: 50 }}
+                        animate={{ opacity: 1, y: 0, x: 0 }}
+                        exit={{ opacity: 0, y: 20 }}
+                        className="fixed bottom-6 right-6 z-[90] max-w-sm w-full bg-white rounded-2xl shadow-2xl border border-blue-100 overflow-hidden"
+                    >
+                        <div className="bg-[#003366] p-4 flex justify-between items-center text-white">
+                            <h4 className="font-bold flex items-center gap-2">
+                                <NotificationsIcon fontSize="small" /> New Announcement
+                            </h4>
+                            <button onClick={() => setShowWelcomeNotification(false)} className="text-white/80 hover:text-white">
+                                <CloseIcon fontSize="small" />
+                            </button>
+                        </div>
+                        <div className="p-5">
+                            <h5 className="font-bold text-gray-800 mb-2">Welcome to the New Portal! 🚀</h5>
+                            <p className="text-sm text-gray-600 mb-4">
+                                We have updated the offer management system. Check out the new <strong>Offer Type</strong> and <strong>City</strong> details in the Offers section.
+                            </p>
+                            <button
+                                onClick={() => {
+                                    setShowWelcomeNotification(false);
+                                    setActiveTab('offers');
+                                }}
+                                className="w-full py-2 bg-blue-50 text-[#003366] font-bold rounded-lg hover:bg-blue-100 transition-colors text-sm"
+                            >
+                                Check Offers Now
+                            </button>
+                        </div>
+                    </motion.div>
                 )}
             </AnimatePresence>
         </div>
