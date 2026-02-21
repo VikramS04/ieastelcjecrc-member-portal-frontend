@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Dashboard as DashboardIcon,
@@ -20,8 +20,8 @@ import {
     ChevronRight as ChevronRightIcon,
     Menu as MenuIcon,
     CloudUpload as UploadIcon,
-    LocationCity as CityIcon,
-    AccessTime as TimeIcon
+    Visibility as VisibilityIcon,
+    Campaign as CampaignIcon
 } from '@mui/icons-material';
 import {
     Chart as ChartJS,
@@ -41,31 +41,13 @@ import { apiFetch, clearAuthSession, getAuthToken } from '../utils/api';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, ArcElement);
 
+const ADMIN_TABS = ['dashboard', 'offers', 'approve-members', 'applications', 'members', 'notifications', 'settings'];
+
 // Mock Data
 const INITIAL_OFFERS = [
-    { id: 1, country: 'Germany', city: 'Munich', flag: '🇩🇪', company: 'BMW Group', position: 'Software Engineering Intern', duration: '6 Months', stipend: '€1200/mo', field: 'Computer Science', deadline: '2026-03-01', urgent: true, status: 'Active', applicants: 12, offerType: 'Open' },
-    { id: 2, country: 'Switzerland', city: 'Geneva', flag: '🇨🇭', company: 'CERN', position: 'Research Assistant', duration: '12 Months', stipend: 'CHF 3500/mo', field: 'Physics / IT', deadline: '2026-03-15', urgent: false, status: 'Active', applicants: 8, offerType: 'FCFS' },
-    { id: 3, country: 'Japan', city: 'Tokyo', flag: '🇯🇵', company: 'Toyota', position: 'R&D Intern', duration: '3 Months', stipend: '¥150,000/mo', field: 'Mechanical Eng.', deadline: '2026-02-28', urgent: true, status: 'Closed', applicants: 24, offerType: 'Global' },
-];
-
-const APPLICATIONS = [
-    { id: 101, student: 'Aarav Sharma', offerId: 1, offerTitle: 'Software Engineering Intern (BMW)', status: 'Pending', date: '2026-02-15' },
-    { id: 102, student: 'Priya Patel', offerId: 2, offerTitle: 'Research Assistant (CERN)', status: 'Approved', date: '2026-02-14' },
-    { id: 103, student: 'Rohan Gupta', offerId: 1, offerTitle: 'Software Engineering Intern (BMW)', status: 'Rejected', date: '2026-02-12' },
-];
-
-const MEMBERS = [
-    { id: 201, name: 'Aarav Sharma', studentId: 'LCJ-2026-045', year: '3rd Year', department: 'Computer Science', status: 'Applied', appliedCount: 2 },
-    { id: 202, name: 'Priya Patel', studentId: 'LCJ-2026-048', year: '4th Year', department: 'IT', status: 'Placed', appliedCount: 5 },
-    { id: 203, name: 'Rohan Gupta', studentId: 'LCJ-2026-052', year: '3rd Year', department: 'Mechanical', status: 'Rejected', appliedCount: 1 },
-    { id: 204, name: 'Sneha Singh', studentId: 'LCJ-2026-060', year: '2nd Year', department: 'Electronics', status: 'Registered', appliedCount: 0 },
-    { id: 205, name: 'Vikram Malhotra', studentId: 'LCJ-2026-065', year: '4th Year', department: 'Civil', status: 'Registered', appliedCount: 0 },
-];
-
-const NOTIFICATIONS = [
-    { id: 1, title: 'New Offer: BMW Group', message: 'Applications are now open for BMW Software Engineering Intern.', type: 'Offer', date: '2026-02-18', recipient: 'All Members' },
-    { id: 2, title: 'System Maintenance', message: 'The portal will be down for maintenance on Sunday, 10 PM - 12 AM.', type: 'Alert', date: '2026-02-15', recipient: 'All Members' },
-    { id: 3, title: 'Interview Schedule Reminder', message: 'Please check your email for the interview schedule.', type: 'Info', date: '2026-02-10', recipient: '3rd Year' },
+    { id: 1, country: 'Germany', flag: '🇩🇪', company: 'BMW Group', position: 'Software Engineering Intern', duration: '6 Months', stipend: '€1200/mo', field: 'Computer Science', deadline: '2026-03-01', urgent: true, status: 'Active', applicants: 12 },
+    { id: 2, country: 'Switzerland', flag: '🇨🇭', company: 'CERN', position: 'Research Assistant', duration: '12 Months', stipend: 'CHF 3500/mo', field: 'Physics / IT', deadline: '2026-03-15', urgent: false, status: 'Active', applicants: 8 },
+    { id: 3, country: 'Japan', flag: '🇯🇵', company: 'Toyota', position: 'R&D Intern', duration: '3 Months', stipend: '¥150,000/mo', field: 'Mechanical Eng.', deadline: '2026-02-28', urgent: true, status: 'Closed', applicants: 24 },
 ];
 
 export default function AdminDashboard() {
@@ -73,22 +55,45 @@ export default function AdminDashboard() {
     const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth >= 768);
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
     const [offers, setOffers] = useState(INITIAL_OFFERS);
-    const [members, setMembers] = useState(MEMBERS);
-    const [notifications, setNotifications] = useState(NOTIFICATIONS);
     const [showAddOfferModal, setShowAddOfferModal] = useState(false);
-    const [showAddMemberModal, setShowAddMemberModal] = useState(false);
-    const [showNotificationModal, setShowNotificationModal] = useState(false);
-    const [deleteMemberStep, setDeleteMemberStep] = useState(0); // 0: None, 1: Confirm, 2: Final
-    const [memberToDelete, setMemberToDelete] = useState(null);
+    const [editingOfferId, setEditingOfferId] = useState(null);
+
+    const [offerSearch, setOfferSearch] = useState('');
+    const [offerFromDate, setOfferFromDate] = useState('');
+    const [offerToDate, setOfferToDate] = useState('');
+
+    const [members, setMembers] = useState([]); // membership applications from DB
+    const [summary, setSummary] = useState({
+        totalOffers: 0,
+        totalApplicants: 0,
+        pendingReview: 0,
+        approved: 0,
+        rejected: 0
+    });
+    const [applicationsFilters, setApplicationsFilters] = useState({
+        search: '',
+        status: 'all',
+        fromDate: '',
+        toDate: ''
+    });
+    const [selectedApplication, setSelectedApplication] = useState(null);
+    const [membersFilters, setMembersFilters] = useState({
+        search: '',
+        status: 'all',
+        type: 'all',
+        passport: 'all'
+    });
+    const [selectedMemberDetail, setSelectedMemberDetail] = useState(null);
+    const [memberDetailLoading, setMemberDetailLoading] = useState(false);
+    const [notifications, setNotifications] = useState([]);
     const navigate = useNavigate();
+    const { tab: urlTab } = useParams();
 
     // New Offer Form State
     const [newOffer, setNewOffer] = useState({
         company: '',
         position: '',
-        type: 'Open',
         country: '',
-        city: '',
         flag: '',
         duration: '',
         stipend: '',
@@ -98,12 +103,6 @@ export default function AdminDashboard() {
         description: '',
         requirements: ''
     });
-
-    // New Member State
-    const [newMember, setNewMember] = useState({ name: '', studentId: '', year: '1st Year', department: '', email: '' });
-
-    // New Notification State
-    const [newNotification, setNewNotification] = useState({ title: '', message: '', type: 'Info', recipient: 'All Members' });
 
     // SEO & Responsive Init
     useEffect(() => {
@@ -155,6 +154,13 @@ export default function AdminDashboard() {
         return () => window.removeEventListener('resize', handleResize);
     }, [navigate]);
 
+    // Sync URL tab with activeTab so sidebar and URL stay in sync
+    useEffect(() => {
+        const t = (urlTab || 'dashboard').toLowerCase();
+        if (ADMIN_TABS.includes(t)) setActiveTab(t);
+        else if (urlTab) navigate('/admin-dashboard', { replace: true });
+    }, [urlTab, navigate]);
+
     useEffect(() => {
         const run = async () => {
             if (activeTab !== 'applications' && activeTab !== 'members' && activeTab !== 'approve-members' && activeTab !== 'notifications') return;
@@ -192,93 +198,51 @@ export default function AdminDashboard() {
 
     const handleAddOffer = (e) => {
         e.preventDefault();
+        const run = async () => {
+            if (editingOfferId) {
+                await apiFetch(`/api/admin/offers/${editingOfferId}`, { method: 'PATCH', body: newOffer });
+                alert("Offer Updated Successfully!");
+            } else {
+                await apiFetch('/api/admin/offers', { method: 'POST', body: newOffer });
+                alert("Offer Created Successfully!");
+            }
 
-        if (newOffer.id) {
-            // Edit existing offer
-            setOffers(offers.map(o => o.id === newOffer.id ? { ...newOffer, applicants: o.applicants, status: o.status } : o));
-            alert("Offer Updated Successfully!");
-        } else {
-            // Add new offer
-            const offer = {
-                id: offers.length + 1,
-                ...newOffer,
-                status: 'Active',
-                applicants: 0
-            };
-            setOffers([offer, ...offers]);
-            alert("Offer Created Successfully!");
-        }
-        setShowAddOfferModal(false);
-        setNewOffer({ company: '', position: '', type: 'Open', country: '', city: '', flag: '', duration: '', stipend: '', field: '', deadline: '', urgent: false, description: '', requirements: '' });
-    };
+            const offersRes = await apiFetch('/api/admin/offers');
+            setOffers(offersRes.offers || []);
+            const sum = await apiFetch('/api/admin/summary');
+            setSummary(sum || {});
 
-    const handleEditOffer = (offer) => {
-        setNewOffer({ ...offer });
-        setShowAddOfferModal(true);
-    };
-
-    const handleDeleteOffer = (id) => {
-        if (window.confirm("Are you sure you want to delete this offer? This action cannot be undone.")) {
-            setOffers(offers.filter(o => o.id !== id));
-        }
-    };
-
-    const handleApplicationAction = (id, action) => {
-        alert(`${action} action for application ID: ${id}`);
-    };
-
-    const handleAddMember = (e) => {
-        e.preventDefault();
-        const member = {
-            id: members.length + 200,
-            ...newMember,
-            status: 'Registered',
-            appliedCount: 0
+            setShowAddOfferModal(false);
+            setEditingOfferId(null);
+            setNewOffer({
+                company: '',
+                position: '',
+                country: '',
+                flag: '',
+                duration: '',
+                stipend: '',
+                field: '',
+                deadline: '',
+                urgent: false,
+                description: '',
+                requirements: ''
+            });
         };
-        setMembers([member, ...members]);
-        setShowAddMemberModal(false);
-        setNewMember({ name: '', studentId: '', year: '1st Year', department: '', email: '' });
-        alert("Member Added Successfully!");
+
+        run().catch((error) => alert(error?.message || 'Failed to save offer'));
     };
 
-    const initiateDeleteMember = (member) => {
-        setMemberToDelete(member);
-        setDeleteMemberStep(1);
-    };
-
-    const confirmDeleteMember = () => {
-        if (deleteMemberStep === 1) {
-            setDeleteMemberStep(2);
-        } else if (deleteMemberStep === 2) {
-            setMembers(members.filter(m => m.id !== memberToDelete.id));
-            setDeleteMemberStep(0);
-            setMemberToDelete(null);
-            alert("Member Deleted Permanently.");
-        }
-    };
-
-    const cancelDeleteMember = () => {
-        setDeleteMemberStep(0);
-        setMemberToDelete(null);
-    };
-
-    const handleSendNotification = (e) => {
-        e.preventDefault();
-        const notification = {
-            id: notifications.length + 1,
-            ...newNotification,
-            date: new Date().toISOString().split('T')[0]
+    const updateMemberStatus = (memberId, status) => {
+        const run = async () => {
+            await apiFetch(`/api/admin/memberships/${memberId}/status`, { method: 'PATCH', body: { status } });
+            const membershipsRes = await apiFetch('/api/admin/memberships', {
+                auth: true
+            });
+            setMembers(membershipsRes.memberships || []);
+            const sum = await apiFetch('/api/admin/summary');
+            setSummary(sum || {});
         };
-        setNotifications([notification, ...notifications]);
-        setShowNotificationModal(false);
-        setNewNotification({ title: '', message: '', type: 'Info', recipient: 'All Members' });
-        alert("Notification Sent Successfully!");
-    };
-
-    const handleDeleteNotification = (id) => {
-        if (window.confirm("Delete this notification?")) {
-            setNotifications(notifications.filter(n => n.id !== id));
-        }
+        run().catch((error) => alert(error?.message || 'Failed to update status'));
     };
 
     // --- Components ---
@@ -348,6 +312,7 @@ export default function AdminDashboard() {
             <button
                 onClick={() => {
                     setActiveTab(id);
+                    navigate(`/admin-dashboard${id === 'dashboard' ? '' : `/${id}`}`);
                     if (isMobile) setSidebarOpen(false);
                 }}
                 className={`
@@ -558,26 +523,91 @@ export default function AdminDashboard() {
             setShowAddOfferModal(true);
         };
 
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left min-w-[800px]">
-                        <thead className="bg-gray-50 border-b border-gray-200">
-                            <tr>
-                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Company/Role</th>
-                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Offer Type</th>
-                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Location</th>
-                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Applicants</th>
-                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Status</th>
-                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                            {offers.map(offer => (
-                                <tr key={offer.id} className="hover:bg-gray-50 transition-colors">
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center">
-                                            <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center text-xl mr-3 shadow-sm border border-blue-100">
-                                                {offer.flag}
+        const handleDeleteOffer = (offerId) => {
+            if (!window.confirm('Are you sure you want to delete this offer?')) return;
+            const run = async () => {
+                await apiFetch(`/api/admin/offers/${offerId}`, { method: 'DELETE' });
+                const offersRes = await apiFetch('/api/admin/offers');
+                setOffers(offersRes.offers || []);
+                const sum = await apiFetch('/api/admin/summary');
+                setSummary(sum || {});
+            };
+            run().catch((error) => alert(error?.message || 'Failed to delete offer'));
+        };
+
+        return (
+            <div className="space-y-6 animate-fade-in-up">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
+                    <h3 className="text-xl font-bold text-gray-800">All Offers</h3>
+                    <button
+                        onClick={handleOpenCreate}
+                        className="flex items-center px-4 py-2 bg-[#0B3D59] text-white rounded-lg hover:bg-[#09314a] transition-all shadow-md hover:shadow-lg transform hover:-translate-y-1 w-full sm:w-auto justify-center"
+                    >
+                        <AddIcon className="mr-2" />
+                        Add New Offer
+                    </button>
+                </div>
+
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 space-y-4">
+                    <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+                        <div className="w-full md:w-1/3">
+                            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Search</label>
+                            <div className="relative">
+                                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                <input
+                                    type="text"
+                                    value={offerSearch}
+                                    onChange={(e) => setOfferSearch(e.target.value)}
+                                    placeholder="Search by company, role, country..."
+                                    className="w-full pl-10 pr-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B3D59]/20 focus:border-[#0B3D59]"
+                                />
+                            </div>
+                        </div>
+                        <div className="flex flex-wrap gap-4 w-full md:w-auto">
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">From Date</label>
+                                <input
+                                    type="date"
+                                    value={offerFromDate}
+                                    onChange={(e) => setOfferFromDate(e.target.value)}
+                                    className="w-full md:w-40 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B3D59]/20 focus:border-[#0B3D59]"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">To Date</label>
+                                <input
+                                    type="date"
+                                    value={offerToDate}
+                                    onChange={(e) => setOfferToDate(e.target.value)}
+                                    className="w-full md:w-40 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B3D59]/20 focus:border-[#0B3D59]"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left min-w-[800px]">
+                            <thead className="bg-gray-50 border-b border-gray-200">
+                                <tr>
+                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Company/Role</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Location</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Applicants</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Status</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {filteredOffers.map(offer => (
+                                    <tr key={offer._id || offer.id} className="hover:bg-gray-50 transition-colors">
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center">
+                                                <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center text-xl mr-3 shadow-sm border border-blue-100">
+                                                    {offer.flag}
+                                                </div>
+                                                <div>
+                                                    <p className="font-bold text-gray-800">{offer.position}</p>
+                                                    <p className="text-sm text-gray-500">{offer.company}</p>
+                                                </div>
                                             </div>
                                         </td>
                                         <td className="px-6 py-4">
@@ -589,33 +619,128 @@ export default function AdminDashboard() {
                                                 <div className="inline-block h-8 w-8 rounded-full ring-2 ring-white bg-gray-300"></div>
                                                 <div className="h-8 w-8 rounded-full ring-2 ring-white bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-600">+{offer.applicants}</div>
                                             </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <span className={`px-2 py-1 rounded text-xs font-bold border ${activeTab === 'offers' ? (offer.offerType === 'Open' ? 'bg-blue-50 text-blue-600 border-blue-100' : offer.offerType === 'FCFS' ? 'bg-orange-50 text-orange-600 border-orange-100' : 'bg-purple-50 text-purple-600 border-purple-100') : ''}`}>{offer.offerType}</span>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex flex-col">
-                                            <span className="text-sm font-medium text-gray-700">{offer.city}</span>
-                                            <span className="text-xs text-gray-500">{offer.country}</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex -space-x-2 overflow-hidden">
-                                            <div className="inline-block h-8 w-8 rounded-full ring-2 ring-white bg-gray-200"></div>
-                                            <div className="inline-block h-8 w-8 rounded-full ring-2 ring-white bg-gray-300"></div>
-                                            <div className="h-8 w-8 rounded-full ring-2 ring-white bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-600">+{offer.applicants}</div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${offer.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                                            {offer.status}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <button onClick={() => handleEditOffer(offer)} className="text-gray-400 hover:text-[#0B3D59] mx-1"><EditIcon fontSize="small" /></button>
-                                        <button onClick={() => handleDeleteOffer(offer.id)} className="text-gray-400 hover:text-red-500 mx-1"><DeleteIcon fontSize="small" /></button>
-                                    </td>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${offer.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                                                {offer.status}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 text-right">
+                                            <button
+                                                className="text-gray-400 hover:text-[#0B3D59] mx-1"
+                                                onClick={() => handleEditOfferClick(offer)}
+                                            >
+                                                <EditIcon fontSize="small" />
+                                            </button>
+                                            <button
+                                                className="text-gray-400 hover:text-red-500 mx-1"
+                                                onClick={() => handleDeleteOffer(offer._id || offer.id)}
+                                            >
+                                                <DeleteIcon fontSize="small" />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {filteredOffers.length === 0 && (
+                                    <tr>
+                                        <td colSpan="5" className="px-6 py-8 text-center text-sm text-gray-500">
+                                            No offers found for the selected filters.
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    const ApproveMembersView = () => {
+        const normalizedSearch = applicationsFilters.search.trim().toLowerCase();
+
+        const filteredApplications = members.filter((member) => {
+            const createdDate = (member.createdAt || '').slice(0, 10);
+
+            const matchesSearch =
+                !normalizedSearch ||
+                [member.fullName, member.registrationNumber, member.email, member.whatsappNumber]
+                    .filter(Boolean)
+                    .some((value) => value.toLowerCase().includes(normalizedSearch));
+
+            if (!matchesSearch) return false;
+
+            if (applicationsFilters.status !== 'all') {
+                if ((member.status || '').toLowerCase() !== applicationsFilters.status.toLowerCase()) {
+                    return false;
+                }
+            }
+
+            if (applicationsFilters.fromDate && createdDate && createdDate < applicationsFilters.fromDate) {
+                return false;
+            }
+            if (applicationsFilters.toDate && createdDate && createdDate > applicationsFilters.toDate) {
+                return false;
+            }
+
+            return true;
+        });
+
+        const handleFilterChange = (field, value) => {
+            setApplicationsFilters(prev => ({ ...prev, [field]: value }));
+        };
+
+        return (
+            <div className="space-y-6 animate-fade-in-up">
+                <h3 className="text-xl font-bold text-gray-800">Approve Members</h3>
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 space-y-4">
+                    <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+                        <div className="w-full md:w-1/3">
+                            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Search Applicant</label>
+                            <div className="relative">
+                                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                <input
+                                    type="text"
+                                    value={applicationsFilters.search}
+                                    onChange={(e) => handleFilterChange('search', e.target.value)}
+                                    placeholder="Search by name, roll no, email..."
+                                    className="w-full pl-10 pr-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B3D59]/20 focus:border-[#0B3D59]"
+                                />
+                            </div>
+                        </div>
+                        <div className="flex flex-wrap gap-4 w-full md:w-auto">
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">From Date</label>
+                                <input
+                                    type="date"
+                                    value={applicationsFilters.fromDate}
+                                    onChange={(e) => handleFilterChange('fromDate', e.target.value)}
+                                    className="w-full md:w-40 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B3D59]/20 focus:border-[#0B3D59]"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">To Date</label>
+                                <input
+                                    type="date"
+                                    value={applicationsFilters.toDate}
+                                    onChange={(e) => handleFilterChange('toDate', e.target.value)}
+                                    className="w-full md:w-40 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B3D59]/20 focus:border-[#0B3D59]"
+                                />
+                            </div>
+                            {/* Status filter not needed here; this view only shows pending requests */}
+                        </div>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left min-w-[900px]">
+                            <thead className="bg-gray-50 border-b border-gray-200">
+                                <tr>
+                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Full Name</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Registration/Roll No.</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Membership Type</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Created On</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Status</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
@@ -680,48 +805,106 @@ export default function AdminDashboard() {
                     </div>
                 </div>
             </div>
-        </div >
-    );
+        );
+    };
 
     const ApplicationsView = () => (
-        <div className="space-y-6 animate-fade-in-up">
-            <h3 className="text-xl font-bold text-gray-800">Review Applications</h3>
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left min-w-[800px]">
-                        <thead className="bg-gray-50 border-b border-gray-200">
-                            <tr>
-                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Student Name</th>
-                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Offer Applied</th>
-                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Date</th>
-                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Status</th>
-                                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                            {APPLICATIONS.map(app => (
-                                <tr key={app.id} className="hover:bg-gray-50 transition-colors">
-                                    <td className="px-6 py-4 font-bold text-gray-800">{app.student}</td>
-                                    <td className="px-6 py-4 text-sm text-gray-600">{app.offerTitle}</td>
-                                    <td className="px-6 py-4 text-sm text-gray-500">{app.date}</td>
-                                    <td className="px-6 py-4">
-                                        <span className={`px-3 py-1 rounded-full text-xs font-bold 
-                                            ${app.status === 'Approved' ? 'bg-green-100 text-green-700' :
-                                                app.status === 'Rejected' ? 'bg-red-100 text-red-700' :
-                                                    'bg-yellow-100 text-yellow-700'}`}>
-                                            {app.status}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4 text-right relative group">
-                                        <button onClick={() => handleApplicationAction(app.id, 'View')} className="text-[#0B3D59] hover:underline text-sm font-semibold mr-3">View</button>
-                                        <button className="text-gray-400 hover:text-gray-600 peer"><MoreVertIcon fontSize="small" /></button>
-                                        {/* Dropdown Menu */}
-                                        <div className="absolute right-0 top-8 w-32 bg-white shadow-lg rounded-lg py-1 border border-gray-100 hidden group-hover:block peer-focus:block z-20">
-                                            <button onClick={() => handleApplicationAction(app.id, 'Approve')} className="block w-full text-left px-4 py-2 text-sm text-green-600 hover:bg-gray-50">Approve</button>
-                                            <button onClick={() => handleApplicationAction(app.id, 'Reject')} className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-50">Reject</button>
-                                            <button onClick={() => handleApplicationAction(app.id, 'Delete')} className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Delete</button>
-                                        </div>
-                                    </td>
+        <div className="flex items-center justify-center h-96 text-gray-400">
+            <div className="text-center">
+                <ApplicationsIcon style={{ fontSize: 64, opacity: 0.5 }} />
+                <p className="mt-4 text-lg">Offer applications section under development</p>
+                <p className="text-sm">Membership approvals are available under "Approve Members".</p>
+            </div>
+        </div>
+    );
+
+    const MembersView = () => {
+        const normalizedSearch = membersFilters.search.trim().toLowerCase();
+
+        const filteredMembers = members
+            .filter((member) => (member.status || '') === 'Approved')
+            .filter((member) => {
+                const matchesSearch =
+                    !normalizedSearch ||
+                    [member.fullName, member.registrationNumber, member.email, member.whatsappNumber]
+                        .filter(Boolean)
+                        .some((value) => value.toLowerCase().includes(normalizedSearch));
+
+                if (!matchesSearch) return false;
+
+                if (membersFilters.type !== 'all') {
+                    if ((member.memberType || '') !== membersFilters.type) {
+                        return false;
+                    }
+                }
+
+                if (membersFilters.passport === 'yes' && member.hasPassport !== 'yes') return false;
+                if (membersFilters.passport === 'no' && member.hasPassport !== 'no') return false;
+
+                return true;
+            });
+
+        const handleFilterChange = (field, value) => {
+            setMembersFilters(prev => ({ ...prev, [field]: value }));
+        };
+
+        return (
+            <div className="space-y-6 animate-fade-in-up">
+                <h3 className="text-xl font-bold text-gray-800">Members Directory</h3>
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 space-y-4">
+                    <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+                        <div className="w-full md:w-1/3">
+                            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Search Member</label>
+                            <div className="relative">
+                                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                <input
+                                    type="text"
+                                    value={membersFilters.search}
+                                    onChange={(e) => handleFilterChange('search', e.target.value)}
+                                    placeholder="Search by name, roll no, email..."
+                                    className="w-full pl-10 pr-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#0B3D59]/20 focus:border-[#0B3D59]"
+                                />
+                            </div>
+                        </div>
+                        <div className="flex flex-wrap gap-4 w-full md:w-auto">
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Membership Type</label>
+                                <select
+                                    value={membersFilters.type}
+                                    onChange={(e) => handleFilterChange('type', e.target.value)}
+                                    className="w-full md:w-40 px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0B3D59]/20 focus:border-[#0B3D59]"
+                                >
+                                    <option value="all">All</option>
+                                    <option value="in-station">In-Station</option>
+                                    <option value="out-station">Out-Station</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Passport</label>
+                                <select
+                                    value={membersFilters.passport}
+                                    onChange={(e) => handleFilterChange('passport', e.target.value)}
+                                    className="w-full md:w-40 px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0B3D59]/20 focus:border-[#0B3D59]"
+                                >
+                                    <option value="all">All</option>
+                                    <option value="yes">Yes</option>
+                                    <option value="no">No</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left min-w-[1000px]">
+                            <thead className="bg-gray-50 border-b border-gray-200">
+                                <tr>
+                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Full Name</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Registration/Roll No.</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Email</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Membership Type</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Passport</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Joined Date & Time</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
@@ -1197,105 +1380,6 @@ export default function AdminDashboard() {
         );
     };
 
-    const MembersView = () => {
-        const [filterYear, setFilterYear] = useState('All');
-        const [filterStatus, setFilterStatus] = useState('All');
-
-        // Sorting: Applicants appear at top
-        const sortedMembers = [...members].sort((a, b) => {
-            if (a.appliedCount > 0 && b.appliedCount === 0) return -1;
-            if (a.appliedCount === 0 && b.appliedCount > 0) return 1;
-            return 0;
-        });
-
-        const filteredMembers = sortedMembers.filter(m => {
-            const matchesYear = filterYear === 'All' || m.year === filterYear;
-            const matchesStatus = filterStatus === 'All' || m.status === filterStatus;
-            return matchesYear && matchesStatus;
-        });
-
-        return (
-            <div className="space-y-6 animate-fade-in-up">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
-                    <h3 className="text-xl font-bold text-gray-800">Manage Members</h3>
-                    <button
-                        onClick={() => setShowAddMemberModal(true)}
-                        className="flex items-center px-4 py-2 bg-[#0B3D59] text-white rounded-lg hover:bg-[#09314a] transition-all shadow-md w-full sm:w-auto justify-center"
-                    >
-                        <AddIcon className="mr-2" />
-                        Add Member
-                    </button>
-                </div>
-
-                {/* Filters */}
-                <div className="flex gap-4 mb-4">
-                    <select className="p-2 border border-gray-200 rounded-lg text-sm" value={filterYear} onChange={e => setFilterYear(e.target.value)}>
-                        <option value="All">All Years</option>
-                        <option value="1st Year">1st Year</option>
-                        <option value="2nd Year">2nd Year</option>
-                        <option value="3rd Year">3rd Year</option>
-                        <option value="4th Year">4th Year</option>
-                    </select>
-                    <select className="p-2 border border-gray-200 rounded-lg text-sm" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-                        <option value="All">All Statuses</option>
-                        <option value="Registered">Registered</option>
-                        <option value="Applied">Applied</option>
-                        <option value="Placed">Placed</option>
-                        <option value="Rejected">Rejected</option>
-                    </select>
-                </div>
-
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left min-w-[800px]">
-                            <thead className="bg-gray-50 border-b border-gray-200">
-                                <tr>
-                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Name/ID</th>
-                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Year/Dept</th>
-                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Offers Applied</th>
-                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Status</th>
-                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {filteredMembers.map(member => (
-                                    <tr key={member.id} className="hover:bg-gray-50 transition-colors">
-                                        <td className="px-6 py-4">
-                                            <p className="font-bold text-gray-800">{member.name}</p>
-                                            <p className="text-xs text-gray-500">{member.studentId}</p>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <p className="text-sm text-gray-700">{member.year}</p>
-                                            <p className="text-xs text-gray-500">{member.department}</p>
-                                        </td>
-                                        <td className="px-6 py-4 text-center">
-                                            <span className={`inline-flex items-center justify-center px-2 py-1 rounded-full text-xs font-bold ${member.appliedCount > 0 ? 'bg-blue-100 text-[#0B3D59]' : 'bg-gray-100 text-gray-400'}`}>
-                                                {member.appliedCount}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <span className={`px-2 py-1 rounded text-xs font-bold 
-                                                ${member.status === 'Placed' ? 'bg-green-100 text-green-700' :
-                                                    member.status === 'Applied' ? 'bg-blue-100 text-blue-700' :
-                                                        member.status === 'Rejected' ? 'bg-red-50 text-red-600' :
-                                                            'bg-gray-100 text-gray-600'}`}>
-                                                {member.status}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 text-right">
-                                            <button className="text-gray-400 hover:text-[#0B3D59] mx-1"><EditIcon fontSize="small" /></button>
-                                            <button onClick={() => initiateDeleteMember(member)} className="text-gray-400 hover:text-red-500 mx-1"><DeleteIcon fontSize="small" /></button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        );
-    };
-
     const StatCard = ({ title, value, icon, color, change }) => (
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
             <div className="flex justify-between items-start mb-4">
@@ -1314,48 +1398,12 @@ export default function AdminDashboard() {
         </div>
     );
 
-    const NotificationsView = () => {
-        return (
-            <div className="space-y-6 animate-fade-in-up">
-                <div className="flex justify-between items-center">
-                    <h3 className="text-xl font-bold text-gray-800">Manage Notifications</h3>
-                    <button
-                        onClick={() => setShowNotificationModal(true)}
-                        className="flex items-center px-4 py-2 bg-[#0B3D59] text-white rounded-lg hover:bg-[#09314a] transition-all shadow-md"
-                    >
-                        <AddIcon className="mr-2" />
-                        Send Notification
-                    </button>
-                </div>
-
-                <div className="grid gap-4">
-                    {notifications.map(note => (
-                        <div key={note.id} className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex justify-between items-start hover:shadow-md transition-shadow">
-                            <div>
-                                <div className="flex items-center gap-3 mb-1">
-                                    <span className={`px-2 py-0.5 rounded text-xs font-bold 
-                                        ${note.type === 'Offer' ? 'bg-blue-100 text-blue-700' :
-                                            note.type === 'Alert' ? 'bg-red-100 text-red-700' :
-                                                'bg-green-100 text-green-700'}`}>
-                                        {note.type}
-                                    </span>
-                                    <span className="text-gray-400 text-xs flex items-center gap-1">
-                                        <TimeIcon style={{ fontSize: 12 }} /> {note.date}
-                                    </span>
-                                    <span className="text-gray-400 text-xs">To: {note.recipient}</span>
-                                </div>
-                                <h4 className="font-bold text-gray-800 text-lg">{note.title}</h4>
-                                <p className="text-gray-600 mt-1">{note.message}</p>
-                            </div>
-                            <button onClick={() => handleDeleteNotification(note.id)} className="text-gray-300 hover:text-red-500 transition-colors p-2">
-                                <DeleteIcon fontSize="small" />
-                            </button>
-                        </div>
-                    ))}
-                </div>
-            </div>
-        );
-    };
+    const DetailRow = ({ label, value }) => (
+        <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">{label}</p>
+            <p className="text-sm font-medium text-gray-800 break-words">{value || '-'}</p>
+        </div>
+    );
 
     const AddOfferModal = () => (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
@@ -1365,8 +1413,29 @@ export default function AdminDashboard() {
                 className="bg-white rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl"
             >
                 <div className="p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10">
-                    <h3 className="text-2xl font-bold text-[#0B3D59]">{newOffer.id ? 'Edit Offer' : 'Create New Offer'}</h3>
-                    <button onClick={() => setShowAddOfferModal(false)} className="text-gray-400 hover:text-gray-600">
+                    <h3 className="text-2xl font-bold text-[#0B3D59]">
+                        {editingOfferId ? 'Edit Offer' : 'Create New Offer'}
+                    </h3>
+                    <button
+                        onClick={() => {
+                            setShowAddOfferModal(false);
+                            setEditingOfferId(null);
+                            setNewOffer({
+                                company: '',
+                                position: '',
+                                country: '',
+                                flag: '',
+                                duration: '',
+                                stipend: '',
+                                field: '',
+                                deadline: '',
+                                urgent: false,
+                                description: '',
+                                requirements: ''
+                            });
+                        }}
+                        className="text-gray-400 hover:text-gray-600"
+                    >
                         <CancelIcon />
                     </button>
                 </div>
@@ -1383,28 +1452,13 @@ export default function AdminDashboard() {
                             <input required type="text" className="w-full border border-gray-200 rounded-lg p-3 focus:ring-2 focus:ring-[#0B3D59] outline-none"
                                 value={newOffer.position} onChange={e => setNewOffer({ ...newOffer, position: e.target.value })} placeholder="e.g. Frontend Intern" />
                         </div>
-                        <div className="space-y-2">
-                            <label className="text-sm font-bold text-gray-700">Offer Type</label>
-                            <select className="w-full border border-gray-200 rounded-lg p-3 focus:ring-2 focus:ring-[#0B3D59] outline-none bg-white"
-                                value={newOffer.type} onChange={e => setNewOffer({ ...newOffer, type: e.target.value })}>
-                                <option value="Open">Open Offer</option>
-                                <option value="FCFS">FCFS Offer</option>
-                                <option value="Global">Global Offer</option>
-                                <option value="AGC">AGC Offer</option>
-                            </select>
-                        </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                         <div className="space-y-2">
                             <label className="text-sm font-bold text-gray-700">Country</label>
                             <input required type="text" className="w-full border border-gray-200 rounded-lg p-3 focus:ring-2 focus:ring-[#0B3D59] outline-none"
                                 value={newOffer.country} onChange={e => setNewOffer({ ...newOffer, country: e.target.value })} placeholder="e.g. Germany" />
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-sm font-bold text-gray-700">City</label>
-                            <input required type="text" className="w-full border border-gray-200 rounded-lg p-3 focus:ring-2 focus:ring-[#0B3D59] outline-none"
-                                value={newOffer.city} onChange={e => setNewOffer({ ...newOffer, city: e.target.value })} placeholder="e.g. Munich" />
                         </div>
                         <div className="space-y-2">
                             <label className="text-sm font-bold text-gray-700">Flag Emoji</label>
@@ -1455,145 +1509,35 @@ export default function AdminDashboard() {
                     </div>
 
                     <div className="pt-4 border-t border-gray-100 flex justify-end space-x-4">
-                        <button type="button" onClick={() => setShowAddOfferModal(false)} className="px-6 py-3 rounded-lg text-gray-500 font-bold hover:bg-gray-100 transition-colors">Cancel</button>
-                        <button type="submit" className="px-8 py-3 rounded-lg bg-[#0B3D59] text-white font-bold hover:bg-[#09314a] shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1">
-                            {newOffer.id ? 'Save Changes' : 'Publish Offer'}
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setShowAddOfferModal(false);
+                                setEditingOfferId(null);
+                                setNewOffer({
+                                    company: '',
+                                    position: '',
+                                    country: '',
+                                    flag: '',
+                                    duration: '',
+                                    stipend: '',
+                                    field: '',
+                                    deadline: '',
+                                    urgent: false,
+                                    description: '',
+                                    requirements: ''
+                                });
+                            }}
+                            className="px-6 py-3 rounded-lg text-gray-500 font-bold hover:bg-gray-100 transition-colors"
+                        >
+                            Cancel
                         </button>
-                    </div>
-                </form>
-            </motion.div>
-        </div>
-    );
-
-    const AddMemberModal = () => (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-            <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden"
-            >
-                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                    <h3 className="text-xl font-bold text-[#0B3D59]">Add New Member</h3>
-                    <button onClick={() => setShowAddMemberModal(false)} className="text-gray-400 hover:text-gray-600">
-                        <CancelIcon />
-                    </button>
-                </div>
-                <form onSubmit={handleAddMember} className="p-6 space-y-4">
-                    <div>
-                        <label className="text-sm font-bold text-gray-700 block mb-1">Full Name</label>
-                        <input required type="text" className="w-full border border-gray-200 rounded-lg p-3 focus:ring-2 focus:ring-[#0B3D59] outline-none"
-                            value={newMember.name} onChange={e => setNewMember({ ...newMember, name: e.target.value })} />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="text-sm font-bold text-gray-700 block mb-1">Student ID</label>
-                            <input required type="text" className="w-full border border-gray-200 rounded-lg p-3 focus:ring-2 focus:ring-[#0B3D59] outline-none"
-                                value={newMember.studentId} onChange={e => setNewMember({ ...newMember, studentId: e.target.value })} />
-                        </div>
-                        <div>
-                            <label className="text-sm font-bold text-gray-700 block mb-1">Year</label>
-                            <select className="w-full border border-gray-200 rounded-lg p-3 focus:ring-2 focus:ring-[#0B3D59] outline-none bg-white"
-                                value={newMember.year} onChange={e => setNewMember({ ...newMember, year: e.target.value })}>
-                                <option>1st Year</option>
-                                <option>2nd Year</option>
-                                <option>3rd Year</option>
-                                <option>4th Year</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div>
-                        <label className="text-sm font-bold text-gray-700 block mb-1">Department</label>
-                        <input required type="text" className="w-full border border-gray-200 rounded-lg p-3 focus:ring-2 focus:ring-[#0B3D59] outline-none"
-                            value={newMember.department} onChange={e => setNewMember({ ...newMember, department: e.target.value })} />
-                    </div>
-                    <div className="pt-4 flex justify-end space-x-3">
-                        <button type="button" onClick={() => setShowAddMemberModal(false)} className="px-4 py-2 text-gray-500 font-semibold hover:bg-gray-100 rounded-lg">Cancel</button>
-                        <button type="submit" className="px-6 py-2 bg-[#0B3D59] text-white font-bold rounded-lg hover:bg-[#09314a]">Add Member</button>
-                    </div>
-                </form>
-            </motion.div>
-        </div>
-    );
-
-    const DeleteConfirmationModal = () => (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-fade-in">
-            <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden p-6 text-center"
-            >
-                <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <DeleteIcon fontSize="large" />
-                </div>
-                <h3 className="text-xl font-bold text-gray-800 mb-2">
-                    {deleteMemberStep === 1 ? 'Delete Member?' : 'Final Confirmation'}
-                </h3>
-                <p className="text-gray-500 mb-6">
-                    {deleteMemberStep === 1
-                        ? `Are you sure you want to delete ${memberToDelete?.name}?`
-                        : "This action entails permanent removal from the database. Are you absolutely sure?"}
-                </p>
-                <div className="flex justify-center space-x-3">
-                    <button onClick={cancelDeleteMember} className="px-6 py-2 bg-gray-100 text-gray-700 font-bold rounded-lg hover:bg-gray-200">Cancel</button>
-                    <button onClick={confirmDeleteMember} className="px-6 py-2 bg-red-500 text-white font-bold rounded-lg hover:bg-red-600 shadow-lg">
-                        {deleteMemberStep === 1 ? 'Yes, Continue' : 'Delete Permanently'}
-                    </button>
-                </div>
-            </motion.div>
-        </div>
-    );
-
-    const NotificationModal = () => (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-            <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden"
-            >
-                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                    <h3 className="text-xl font-bold text-[#0B3D59]">Send Notification</h3>
-                    <button onClick={() => setShowNotificationModal(false)} className="text-gray-400 hover:text-gray-600">
-                        <CancelIcon />
-                    </button>
-                </div>
-                <form onSubmit={handleSendNotification} className="p-6 space-y-4">
-                    <div>
-                        <label className="text-sm font-bold text-gray-700 block mb-1">Title</label>
-                        <input required type="text" className="w-full border border-gray-200 rounded-lg p-3 focus:ring-2 focus:ring-[#0B3D59] outline-none"
-                            value={newNotification.title} onChange={e => setNewNotification({ ...newNotification, title: e.target.value })}
-                            placeholder="e.g. New Offer in Germany" />
-                    </div>
-                    <div>
-                        <label className="text-sm font-bold text-gray-700 block mb-1">Message</label>
-                        <textarea required className="w-full border border-gray-200 rounded-lg p-3 focus:ring-2 focus:ring-[#0B3D59] outline-none resize-none h-32"
-                            value={newNotification.message} onChange={e => setNewNotification({ ...newNotification, message: e.target.value })}
-                            placeholder="Enter your message here..." />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="text-sm font-bold text-gray-700 block mb-1">Type</label>
-                            <select className="w-full border border-gray-200 rounded-lg p-3 focus:ring-2 focus:ring-[#0B3D59] outline-none bg-white"
-                                value={newNotification.type} onChange={e => setNewNotification({ ...newNotification, type: e.target.value })}>
-                                <option>Info</option>
-                                <option>Offer</option>
-                                <option>Alert</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="text-sm font-bold text-gray-700 block mb-1">Recipient Group</label>
-                            <select className="w-full border border-gray-200 rounded-lg p-3 focus:ring-2 focus:ring-[#0B3D59] outline-none bg-white"
-                                value={newNotification.recipient} onChange={e => setNewNotification({ ...newNotification, recipient: e.target.value })}>
-                                <option>All Members</option>
-                                <option>1st Year</option>
-                                <option>2nd Year</option>
-                                <option>3rd Year</option>
-                                <option>4th Year</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div className="pt-4 flex justify-end space-x-3">
-                        <button type="button" onClick={() => setShowNotificationModal(false)} className="px-4 py-2 text-gray-500 font-semibold hover:bg-gray-100 rounded-lg">Cancel</button>
-                        <button type="submit" className="px-6 py-2 bg-[#0B3D59] text-white font-bold rounded-lg hover:bg-[#09314a]">Send</button>
+                        <button
+                            type="submit"
+                            className="px-8 py-3 rounded-lg bg-[#0B3D59] text-white font-bold hover:bg-[#09314a] shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1"
+                        >
+                            {editingOfferId ? 'Save Changes' : 'Publish Offer'}
+                        </button>
                     </div>
                 </form>
             </motion.div>
@@ -1760,10 +1704,12 @@ export default function AdminDashboard() {
                         >
                             {activeTab === 'dashboard' && <DashboardView />}
                             {activeTab === 'offers' && <OffersView />}
+                            {activeTab === 'approve-members' && <ApproveMembersView />}
                             {activeTab === 'applications' && <ApplicationsView />}
                             {activeTab === 'members' && <MembersView />}
                             {activeTab === 'notifications' && <NotificationsView />}
-                            {activeTab !== 'dashboard' && activeTab !== 'offers' && activeTab !== 'applications' && activeTab !== 'members' && activeTab !== 'notifications' && (
+                            {activeTab === 'settings' && <SettingsView />}
+                            {!['dashboard', 'offers', 'approve-members', 'applications', 'members', 'notifications', 'settings'].includes(activeTab) && (
                                 <div className="flex items-center justify-center h-96 text-gray-400">
                                     <div className="text-center">
                                         <SettingsIcon style={{ fontSize: 64, opacity: 0.5 }} />
@@ -1777,9 +1723,46 @@ export default function AdminDashboard() {
             </div>
 
             {showAddOfferModal && <AddOfferModal />}
-            {showAddMemberModal && <AddMemberModal />}
-            {showNotificationModal && <NotificationModal />}
-            {deleteMemberStep > 0 && <DeleteConfirmationModal />}
+            {memberDetailLoading && (
+                <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40">
+                    <div className="text-white font-semibold">Loading member details...</div>
+                </div>
+            )}
+            <AnimatePresence>
+                {selectedMemberDetail && (
+                    <MemberDetailModal
+                        data={selectedMemberDetail}
+                        onClose={() => setSelectedMemberDetail(null)}
+                        onApplicationUpdated={(updated) => updated && setSelectedMemberDetail(updated)}
+                    />
+                )}
+            </AnimatePresence>
+            <AnimatePresence>
+                {selectedApplication && (
+                    <ApplicationDetailModal
+                        application={selectedApplication}
+                        onClose={() => setSelectedApplication(null)}
+                        onApprove={async (id, loginEmail, loginPassword) => {
+                            try {
+                                await apiFetch(`/api/admin/memberships/${id}/status`, {
+                                    method: 'PATCH',
+                                    body: { status: 'Approved', loginEmail, password: loginPassword }
+                                });
+                                const [sum, membershipsRes] = await Promise.all([
+                                    apiFetch('/api/admin/summary'),
+                                    apiFetch('/api/admin/memberships')
+                                ]);
+                                setSummary(sum || {});
+                                setMembers(membershipsRes.memberships || []);
+                                setSelectedApplication(null);
+                                alert('Member approved and login created.');
+                            } catch (error) {
+                                alert(error?.message || 'Failed to approve member');
+                            }
+                        }}
+                    />
+                )}
+            </AnimatePresence>
         </div>
     );
 }
