@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Dashboard as DashboardIcon,
@@ -46,6 +46,8 @@ import { apiFetch, clearAuthSession, getAuthToken } from '../utils/api';
 // Register ChartJS
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, ArcElement);
 
+const MEMBER_TABS = ['dashboard', 'offers', 'applications', 'nomination', 'notifications', 'documents', 'analytics', 'profile', 'settings'];
+
 // Mock Data
 const OFFERS = [
     { id: 1, country: 'Germany', flag: '🇩🇪', company: 'BMW Group', position: 'Software Engineering Intern', duration: '6 Months', stipend: '€1200/mo', field: 'Computer Science', deadline: '2026-03-01', urgent: true },
@@ -67,6 +69,7 @@ export default function MemberDashboard() {
     const [notifications, setNotifications] = useState([]);
 
     const navigate = useNavigate();
+    const { tab: urlTab } = useParams();
 
     // SEO & Responsive Init
     useEffect(() => {
@@ -123,6 +126,13 @@ export default function MemberDashboard() {
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, [navigate]);
+
+    // Sync URL tab with activeTab
+    useEffect(() => {
+        const t = (urlTab || 'dashboard').toLowerCase();
+        if (MEMBER_TABS.includes(t)) setActiveTab(t);
+        else if (urlTab) navigate('/dashboard', { replace: true });
+    }, [urlTab, navigate]);
 
     const persistSavedOffers = (nextSavedOfferIds) => {
         setSavedOfferIds(nextSavedOfferIds);
@@ -240,7 +250,10 @@ export default function MemberDashboard() {
             <button
                 onClick={() => {
                     if (onClick) onClick();
-                    else setActiveTab(id);
+                    else {
+                        setActiveTab(id);
+                        navigate(`/dashboard${id === 'dashboard' ? '' : `/${id}`}`);
+                    }
                     if (isMobile) setSidebarOpen(false);
                 }}
                 className={`

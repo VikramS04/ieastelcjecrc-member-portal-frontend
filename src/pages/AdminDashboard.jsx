@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Dashboard as DashboardIcon,
@@ -40,6 +40,8 @@ import logo from '../assets/Iaeste Logo Standard 2.png';
 import { apiFetch, clearAuthSession, getAuthToken } from '../utils/api';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, ArcElement);
+
+const ADMIN_TABS = ['dashboard', 'offers', 'approve-members', 'applications', 'members', 'notifications', 'settings'];
 
 // Mock Data
 const INITIAL_OFFERS = [
@@ -85,6 +87,7 @@ export default function AdminDashboard() {
     const [memberDetailLoading, setMemberDetailLoading] = useState(false);
     const [notifications, setNotifications] = useState([]);
     const navigate = useNavigate();
+    const { tab: urlTab } = useParams();
 
     // New Offer Form State
     const [newOffer, setNewOffer] = useState({
@@ -150,6 +153,13 @@ export default function AdminDashboard() {
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, [navigate]);
+
+    // Sync URL tab with activeTab so sidebar and URL stay in sync
+    useEffect(() => {
+        const t = (urlTab || 'dashboard').toLowerCase();
+        if (ADMIN_TABS.includes(t)) setActiveTab(t);
+        else if (urlTab) navigate('/admin-dashboard', { replace: true });
+    }, [urlTab, navigate]);
 
     useEffect(() => {
         const run = async () => {
@@ -302,6 +312,7 @@ export default function AdminDashboard() {
             <button
                 onClick={() => {
                     setActiveTab(id);
+                    navigate(`/admin-dashboard${id === 'dashboard' ? '' : `/${id}`}`);
                     if (isMobile) setSidebarOpen(false);
                 }}
                 className={`
@@ -1693,11 +1704,12 @@ export default function AdminDashboard() {
                         >
                             {activeTab === 'dashboard' && <DashboardView />}
                             {activeTab === 'offers' && <OffersView />}
+                            {activeTab === 'approve-members' && <ApproveMembersView />}
                             {activeTab === 'applications' && <ApplicationsView />}
                             {activeTab === 'members' && <MembersView />}
                             {activeTab === 'notifications' && <NotificationsView />}
                             {activeTab === 'settings' && <SettingsView />}
-                            {activeTab !== 'dashboard' && activeTab !== 'offers' && activeTab !== 'applications' && activeTab !== 'members' && activeTab !== 'notifications' && activeTab !== 'settings' && (
+                            {!['dashboard', 'offers', 'approve-members', 'applications', 'members', 'notifications', 'settings'].includes(activeTab) && (
                                 <div className="flex items-center justify-center h-96 text-gray-400">
                                     <div className="text-center">
                                         <SettingsIcon style={{ fontSize: 64, opacity: 0.5 }} />
