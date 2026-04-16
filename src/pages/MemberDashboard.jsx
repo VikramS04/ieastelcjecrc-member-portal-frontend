@@ -1141,9 +1141,10 @@ export default function MemberDashboard() {
                                 className="flex-1 md:flex-none flex items-center justify-center px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    const path = offer.pdfPath;
+                                    const path = offer.pdfPath?.trim();
                                     if (path) {
-                                        window.open(`${API_BASE_URL}${path}`, '_blank');
+                                        const url = path.startsWith('http') ? path : `${API_BASE_URL}/${path.replace(/^\//, '')}`;
+                                        window.open(url, '_blank');
                                     } else {
                                         alert('No PDF attached for this offer');
                                     }
