@@ -22,9 +22,14 @@ const Footer = () => {
                 <div>
                     <h3 className="text-lg font-semibold mb-4 text-blue-400">Quick Links</h3>
                     <ul className="space-y-2 text-sm text-gray-300">
-                        {['About Us', 'Benefits', 'Membership', 'Testimonial'].map((link) => (
-                            <li key={link}>
-                                <a href="#" className="hover:text-white hover:translate-x-1 inline-block transition-transform duration-200">{link}</a>
+                        {[
+                            { name: 'Home', url: 'https://www.iaestelcjecrc.com/' },
+                            { name: 'About Us', url: 'https://www.iaestelcjecrc.com/about' },
+                            { name: 'Benefits', url: 'https://www.iaestelcjecrc.com/benefits' },
+                            { name: 'Membership', url: 'https://www.iaestelcjecrc.com/membership' }
+                        ].map((link) => (
+                            <li key={link.name}>
+                                <a href={link.url} className="hover:text-white hover:translate-x-1 inline-block transition-transform duration-200">{link.name}</a>
                             </li>
                         ))}
                     </ul>
@@ -34,9 +39,14 @@ const Footer = () => {
                 <div>
                     <h3 className="text-lg font-semibold mb-4 text-blue-400">Students</h3>
                     <ul className="space-y-2 text-sm text-gray-300">
-                        {['FAQ', 'Contact Us', 'Our Team'].map((link) => (
-                            <li key={link}>
-                                <a href="#" className="hover:text-white hover:translate-x-1 inline-block transition-transform duration-200">{link}</a>
+                        {[
+                            { name: 'FAQ', url: 'https://www.iaestelcjecrc.com/faqs' },
+                            { name: 'Contact Us', url: 'https://www.iaestelcjecrc.com/contact' },
+                            { name: 'Our Team', url: 'https://www.iaestelcjecrc.com/team' },
+                            { name: 'Testimonial', url: 'https://www.iaestelcjecrc.com/testimonials/incoming#success-stories' }
+                        ].map((link) => (
+                            <li key={link.name}>
+                                <a href={link.url} className="hover:text-white hover:translate-x-1 inline-block transition-transform duration-200">{link.name}</a>
                             </li>
                         ))}
                     </ul>

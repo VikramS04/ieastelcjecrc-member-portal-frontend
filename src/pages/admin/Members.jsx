@@ -235,6 +235,25 @@ export default function Members() {
     const [memberDetailLoading, setMemberDetailLoading] = useState(false);
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState('');
+    const [memberToRemove, setMemberToRemove] = useState(null);
+    const [removing, setRemoving] = useState(false);
+
+    const handleRemoveConfirm = async () => {
+        if (!memberToRemove) return;
+        try {
+            setRemoving(true);
+            await apiFetch(`/api/admin/memberships/${memberToRemove._id || memberToRemove.id}`, {
+                method: 'DELETE'
+            });
+            alert('Member removed successfully.');
+            setMemberToRemove(null);
+            loadMembers();
+        } catch (e) {
+            alert(e?.message || 'Failed to remove member');
+        } finally {
+            setRemoving(false);
+        }
+    };
 
     const loadMembers = () => {
         setLoadError('');
@@ -409,6 +428,7 @@ export default function Members() {
                                     <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Membership Type</th>
                                     <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Passport</th>
                                     <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Status</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Remove</th>
                                     <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Joined</th>
                                     <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">Actions</th>
                                 </tr>
@@ -416,7 +436,7 @@ export default function Members() {
                             <tbody className="divide-y divide-gray-100">
                                 {loading ? (
                                     <tr>
-                                        <td colSpan="9" className="px-6 py-12 text-center text-gray-500">Loading members...</td>
+                                        <td colSpan="10" className="px-6 py-12 text-center text-gray-500">Loading members...</td>
                                     </tr>
                                 ) : sortedMembers.map((member, index) => {
                                     const createdAt = member.createdAt ? new Date(member.createdAt) : null;
@@ -445,6 +465,15 @@ export default function Members() {
                                                     {member.status || '-'}
                                                 </span>
                                             </td>
+                                            <td className="px-6 py-4">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setMemberToRemove(member)}
+                                                    className="inline-flex items-center px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold transition-colors"
+                                                >
+                                                    Remove
+                                                </button>
+                                            </td>
                                             <td className="px-6 py-4 text-sm text-gray-600">{dateStr}{timeStr ? ` • ${timeStr}` : ''}</td>
                                             <td className="px-6 py-4">
                                                 <button
@@ -461,7 +490,7 @@ export default function Members() {
                                 })}
                                 {!loading && sortedMembers.length === 0 && (
                                     <tr>
-                                        <td colSpan="9" className="px-6 py-8 text-center text-sm text-gray-500">
+                                        <td colSpan="10" className="px-6 py-8 text-center text-sm text-gray-500">
                                             No members found for selected filters.
                                         </td>
                                     </tr>
@@ -483,6 +512,44 @@ export default function Members() {
                     onClose={() => setSelectedMemberDetail(null)}
                     onApplicationUpdated={(updated) => updated && setSelectedMemberDetail(updated)}
                 />
+            )}
+            {memberToRemove && (
+                <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setMemberToRemove(null)}>
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="bg-white border-2 border-red-500 rounded-2xl w-full max-w-md overflow-hidden flex flex-col shadow-2xl"
+                    >
+                        <div className="p-6 text-center space-y-4">
+                            <div className="w-16 h-16 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto text-2xl font-bold">
+                                ⚠️
+                            </div>
+                            <h3 className="text-xl font-bold text-red-800">Are you sure?</h3>
+                            <p className="text-sm text-gray-600">
+                                Do you really want to remove member <span className="font-bold text-gray-800">{memberToRemove.fullName}</span>? This action cannot be undone.
+                            </p>
+                            <div className="flex justify-center gap-4 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={handleRemoveConfirm}
+                                    disabled={removing}
+                                    className="px-6 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-bold shadow-lg shadow-red-600/20 transition-all hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50"
+                                >
+                                    {removing ? 'Removing...' : 'Yes'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setMemberToRemove(null)}
+                                    className="px-6 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold transition-all hover:-translate-y-0.5 active:translate-y-0"
+                                >
+                                    No
+                                </button>
+                            </div>
+                        </div>
+                    </motion.div>
+                </div>
             )}
         </>
     );
