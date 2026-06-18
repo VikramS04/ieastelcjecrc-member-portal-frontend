@@ -1431,21 +1431,28 @@ export default function MemberDashboard() {
                         </div>
                     </div>
                     <div className="mt-6 pt-6 border-t border-gray-100">
-                        <p className="text-sm font-semibold text-gray-700 mb-3">Sample Document:</p>
+                        <p className="text-sm font-semibold text-gray-700 mb-3">Factsheet Documents:</p>
                         <div className="flex flex-wrap gap-3">
                             <button
                                 onClick={() => handleViewPDF('Factsheet Format.pdf')}
                                 className="flex items-center gap-2 px-4 py-2 bg-[#003366] text-white rounded-lg hover:bg-[#004080] transition-colors font-medium"
                             >
                                 <PdfIcon />
-                                View Sample Factsheet
+                                Format
+                            </button>
+                            <button
+                                onClick={() => handleViewPDF('sample_factsheet.pdf')}
+                                className="flex items-center gap-2 px-4 py-2 bg-white border-2 border-[#003366] text-[#003366] rounded-lg hover:bg-blue-50 transition-colors font-medium"
+                            >
+                                <ArticleIcon className="w-4 h-4" />
+                                Sample
                             </button>
                             <button
                                 onClick={() => handleDownloadPDF('Factsheet Format.pdf')}
-                                className="flex items-center gap-2 px-4 py-2 bg-white border-2 border-[#003366] text-[#003366] rounded-lg hover:bg-blue-50 transition-colors font-medium"
+                                className="flex items-center gap-2 px-4 py-2 bg-gray-100 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
                             >
                                 <DownloadIcon />
-                                Download Sample
+                                Download
                             </button>
                         </div>
                     </div>
@@ -1495,21 +1502,28 @@ export default function MemberDashboard() {
                         </div>
                     </div>
                     <div className="mt-6 pt-6 border-t border-gray-100">
-                        <p className="text-sm font-semibold text-gray-700 mb-3">Sample Document:</p>
+                        <p className="text-sm font-semibold text-gray-700 mb-3">Nomination Packet Documents:</p>
                         <div className="flex flex-wrap gap-3">
                             <button
                                 onClick={() => handleViewPDF('Documents required.pdf')}
                                 className="flex items-center gap-2 px-4 py-2 bg-[#D62828] text-white rounded-lg hover:bg-[#E63946] transition-colors font-medium"
                             >
                                 <PdfIcon />
-                                View Sample Nomination Packet
+                                Format
+                            </button>
+                            <button
+                                onClick={() => handleViewPDF('sample_nomination_packet.pdf')}
+                                className="flex items-center gap-2 px-4 py-2 bg-white border-2 border-[#D62828] text-[#D62828] rounded-lg hover:bg-red-50 transition-colors font-medium"
+                            >
+                                <ArticleIcon className="w-4 h-4" />
+                                Sample
                             </button>
                             <button
                                 onClick={() => handleDownloadPDF('Documents required.pdf')}
-                                className="flex items-center gap-2 px-4 py-2 bg-white border-2 border-[#D62828] text-[#D62828] rounded-lg hover:bg-red-50 transition-colors font-medium"
+                                className="flex items-center gap-2 px-4 py-2 bg-gray-100 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
                             >
                                 <DownloadIcon />
-                                Download Sample
+                                Download
                             </button>
                         </div>
                     </div>

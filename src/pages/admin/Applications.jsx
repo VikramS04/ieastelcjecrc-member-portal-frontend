@@ -22,7 +22,7 @@ import { apiFetch } from '../../utils/api';
 const STATUS_COLORS = {
     'Received': 'bg-blue-50 text-blue-700 ring-blue-200',
     'Selected at LC Level': 'bg-yellow-50 text-yellow-700 ring-yellow-200',
-    'Employer Checked': 'bg-green-50 text-green-700 ring-green-200',
+    'Selected at NC Level': 'bg-green-50 text-green-700 ring-green-200',
     'Proceed to Nomination Packet': 'bg-purple-50 text-purple-700 ring-purple-200',
 };
 
@@ -94,7 +94,7 @@ export default function Applications() {
         total: applications.length,
         received: applications.filter(a => a.status === 'Received').length,
         selectedLC: applications.filter(a => a.status === 'Selected at LC Level').length,
-        employerChecked: applications.filter(a => a.status === 'Employer Checked').length,
+        employerChecked: applications.filter(a => a.status === 'Selected at NC Level').length,
         proceedNomination: applications.filter(a => a.status === 'Proceed to Nomination Packet').length,
     };
 
@@ -119,7 +119,7 @@ export default function Applications() {
                     { label: 'Total', value: stats.total, color: '#003366' },
                     { label: 'Received', value: stats.received, color: '#3B82F6' },
                     { label: 'Selected @ LC', value: stats.selectedLC, color: '#F59E0B' },
-                    { label: 'Employer Checked', value: stats.employerChecked, color: '#10B981' },
+                    { label: 'Selected at NC Level', value: stats.employerChecked, color: '#10B981' },
                     { label: 'Proceed to Nomination', value: stats.proceedNomination, color: '#8B5CF6' },
                 ].map(s => (
                     <div
@@ -155,7 +155,7 @@ export default function Applications() {
                         <option value="all">All Status</option>
                         <option value="Received">Received</option>
                         <option value="Selected at LC Level">Selected at LC Level</option>
-                        <option value="Employer Checked">Employer Checked</option>
+                        <option value="Selected at NC Level">Selected at NC Level</option>
                         <option value="Proceed to Nomination Packet">Proceed to Nomination Packet</option>
                     </select>
                 </div>
@@ -360,7 +360,7 @@ function ApplicationDetailModal({ app, onClose, onStatusChange, updating }) {
                                     disabled={updating}
                                     onChange={e => onStatusChange(app._id, e.target.value)}
                                     className={`px-4 py-2 rounded-lg text-sm font-bold border focus:outline-none focus:ring-2 focus:ring-[#003366]/20 ${
-                                        app.status === 'Employer Checked' ? 'bg-green-50 text-green-700 border-green-200' :
+                                        app.status === 'Selected at NC Level' ? 'bg-green-50 text-green-700 border-green-200' :
                                         app.status === 'Proceed to Nomination Packet' ? 'bg-purple-50 text-purple-700 border-purple-200' :
                                         app.status === 'Selected at LC Level' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
                                         'bg-blue-50 text-blue-700 border-blue-200'
@@ -368,7 +368,7 @@ function ApplicationDetailModal({ app, onClose, onStatusChange, updating }) {
                                 >
                                     <option value="Received">Received</option>
                                     <option value="Selected at LC Level">Selected at LC Level</option>
-                                    <option value="Employer Checked">Employer Checked</option>
+                                    <option value="Selected at NC Level">Selected at NC Level</option>
                                     <option value="Proceed to Nomination Packet">Proceed to Nomination Packet</option>
                                 </select>
                             </div>
