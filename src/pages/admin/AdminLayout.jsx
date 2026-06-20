@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Menu as MenuIcon } from '@mui/icons-material';
 import logo from '../../assets/Iaeste Logo Standard 2.png';
+import jecrcLogo from '../../assets/jecrc_main.png';
 import AdminSidebar from '../../components/AdminSidebar';
 import { apiFetch, clearAuthSession, getAuthToken } from '../../utils/api';
 
@@ -115,7 +116,11 @@ export default function AdminLayout() {
                             <MenuIcon />
                         </button>
                     )}
-                    <img src={logo} alt="IAESTE" className="h-8 md:h-12 w-auto object-contain mr-4 md:mr-6" />
+                    <div className="flex items-center mr-4 md:mr-6 gap-3">
+                        <img src={logo} alt="IAESTE" className="h-8 md:h-12 w-auto object-contain" />
+                        <div className="h-8 md:h-10 w-px bg-gray-300"></div>
+                        <img src={jecrcLogo} alt="JECRC" className="h-8 md:h-12 w-auto object-contain" />
+                    </div>
                     <h2 className="text-xl md:text-2xl font-bold text-gray-800 border-l border-gray-200 pl-4 md:pl-6 truncate max-w-[150px] md:max-w-none capitalize">
                         {pageTitle}
                     </h2>

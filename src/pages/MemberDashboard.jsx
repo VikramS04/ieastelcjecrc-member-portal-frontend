@@ -46,6 +46,7 @@ import {
 } from 'chart.js';
 import { Line, Bar } from 'react-chartjs-2';
 import logo from '../assets/Iaeste Logo Standard 2.png';
+import jecrcLogo from '../assets/jecrc_main.png';
 import { apiFetch, apiUploadMemberDocuments, clearAuthSession, getAuthToken, API_BASE_URL } from '../utils/api';
 
 // Register ChartJS
@@ -303,11 +304,19 @@ export default function MemberDashboard() {
                         <MenuIcon />
                     </button>
                 )}
-                <img
-                    src={logo}
-                    alt="IAESTE"
-                    className="h-8 md:h-12 w-auto object-contain mr-4 md:mr-6"
-                />
+                <div className="flex items-center mr-4 md:mr-6 gap-3">
+                    <img
+                        src={logo}
+                        alt="IAESTE"
+                        className="h-8 md:h-12 w-auto object-contain"
+                    />
+                    <div className="h-8 md:h-10 w-px bg-gray-300"></div>
+                    <img
+                        src={jecrcLogo}
+                        alt="JECRC"
+                        className="h-8 md:h-12 w-auto object-contain"
+                    />
+                </div>
                 <h2 className="text-xl md:text-2xl font-bold text-gray-800 capitalize border-l border-gray-200 pl-4 md:pl-6 truncate max-w-[150px] md:max-w-none">
                     {activeTab}
                 </h2>
@@ -1144,7 +1153,19 @@ export default function MemberDashboard() {
                                     const path = offer.pdfPath?.trim();
                                     if (path) {
                                         const url = path.startsWith('http') ? path : `${API_BASE_URL}/${path.replace(/^\//, '')}`;
-                                        window.open(url, '_blank');
+                                        fetch(url)
+                                            .then(res => res.blob())
+                                            .then(blob => {
+                                                const blobUrl = window.URL.createObjectURL(blob);
+                                                const link = document.createElement('a');
+                                                link.href = blobUrl;
+                                                link.download = `Offer_${offer.offerNumber || 'Details'}.pdf`;
+                                                document.body.appendChild(link);
+                                                link.click();
+                                                document.body.removeChild(link);
+                                                window.URL.revokeObjectURL(blobUrl);
+                                            })
+                                            .catch(() => window.open(url, '_blank'));
                                     } else {
                                         alert('No PDF attached for this offer');
                                     }
@@ -1860,7 +1881,7 @@ export default function MemberDashboard() {
                             {activeTab === 'notifications' && <NotificationsListView />}
                             {activeTab === 'documents' && <DocumentsView />}
                             {activeTab === 'currency-converter' && <CurrencyConverterView />}
-                            {activeTab !== 'dashboard' && activeTab !== 'offers' && activeTab !== 'applications' && activeTab !== 'profile' && activeTab !== 'settings' && activeTab !== 'notifications' && activeTab !== 'documents' && activeTab !== 'currency-converter' && (
+                            {!['dashboard', 'offers', 'applications', 'saved', 'profile', 'settings', 'notifications', 'documents', 'currency-converter'].includes(activeTab) && (
                                 <div className="flex items-center justify-center h-96 text-gray-400">
                                     <div className="text-center">
                                         <NominationIcon style={{ fontSize: 64, opacity: 0.5 }} />

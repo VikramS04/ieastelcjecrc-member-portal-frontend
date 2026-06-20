@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { apiFetch } from '../../utils/api';
+import { Delete as DeleteIcon } from '@mui/icons-material';
 
 export default function Notifications() {
     const [notifications, setNotifications] = useState([]);
@@ -77,6 +78,16 @@ export default function Notifications() {
             setErr(e?.message || 'Failed to send');
         } finally {
             setSending(false);
+        }
+    };
+
+    const handleDeleteNotification = async (notifId) => {
+        if (!window.confirm('Are you sure you want to delete this notification?')) return;
+        try {
+            await apiFetch(`/api/admin/notifications/${notifId}`, { method: 'DELETE' });
+            setNotifications(notifications.filter((n) => n._id !== notifId));
+        } catch (e) {
+            setErr(e?.message || 'Failed to delete notification');
         }
     };
 
@@ -182,9 +193,20 @@ export default function Notifications() {
                             const recipients = n.recipientIds?.length ? `${n.recipientIds.length} member(s)` : 'All members';
                             return (
                                 <div key={n._id} className="p-3 border border-gray-100 rounded-lg">
-                                    <p className="font-semibold text-gray-800">{n.title}</p>
-                                    {n.body && <p className="text-sm text-gray-600 mt-1">{n.body}</p>}
-                                    <p className="text-xs text-gray-500 mt-2">To: {recipients} • {dateStr}</p>
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <p className="font-semibold text-gray-800">{n.title}</p>
+                                            {n.body && <p className="text-sm text-gray-600 mt-1">{n.body}</p>}
+                                            <p className="text-xs text-gray-500 mt-2">To: {recipients} • {dateStr}</p>
+                                        </div>
+                                        <button 
+                                            onClick={() => handleDeleteNotification(n._id)}
+                                            className="text-red-500 hover:bg-red-50 p-2 rounded-md transition-colors"
+                                            title="Remove notification"
+                                        >
+                                            <DeleteIcon fontSize="small" />
+                                        </button>
+                                    </div>
                                 </div>
                             );
                         })
