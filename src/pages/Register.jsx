@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Footer from '../components/Footer';
 import logo from '../assets/Iaeste Logo Standard 2.png';
-import verticalLogo from '../assets/logo-removebg-preview 1.png';
+import verticalLogo from '../assets/jecrc_main.png';
 import { apiFetch, setAuthSession } from '../utils/api';
 import Select from 'react-select';
 import * as XLSX from 'xlsx';

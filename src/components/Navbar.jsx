@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import logo from '../assets/Iaeste Logo Standard 2.png';
-import jecrcLogo from '../assets/logo-removebg-preview 1.png';
+import jecrcLogo from '../assets/jecrc_main.png';
 
 const Navbar = ({ textDark = false }) => {
   const [isOpen, setIsOpen] = useState(false);
